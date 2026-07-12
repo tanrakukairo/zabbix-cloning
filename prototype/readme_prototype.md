@@ -1,4 +1,4 @@
-y# ZC (Zabbix Cloning) Python旧版
+# ZC (Zabbix Cloning) Python旧版
 
 このディレクトリには、Zabbix CloningのPython旧版を保存しています。
 Python版はZabbix 4.0から7.0までに対応し、特にZabbix 6.0未満で必要なDB直接操作を含みます。

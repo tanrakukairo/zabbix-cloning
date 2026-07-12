@@ -9,7 +9,7 @@ Think of Zabbix configuration as a potted plant: ZC helps with repotting and
 cloning it.
 
 The Go version supports Zabbix 6.0 through 7.0. For versions earlier than 6.0,
-use the [Python legacy version](prototype/readme.md).
+use the [Python legacy version](prototype/readme_prototype.md).
 
 ## Main Features
 
