@@ -7,10 +7,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/t2-f/zabbix-cloning/internal/config"
-	"github.com/t2-f/zabbix-cloning/internal/logx"
-	"github.com/t2-f/zabbix-cloning/internal/model"
-	"github.com/t2-f/zabbix-cloning/internal/zabbix"
+	"github.com/tanrakukairo/zabbix-cloning/internal/config"
+	"github.com/tanrakukairo/zabbix-cloning/internal/logx"
+	"github.com/tanrakukairo/zabbix-cloning/internal/model"
+	"github.com/tanrakukairo/zabbix-cloning/internal/zabbix"
 )
 
 func TestPSKUpdateParameters(t *testing.T) {

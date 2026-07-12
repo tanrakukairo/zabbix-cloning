@@ -1,4 +1,4 @@
-module github.com/t2-f/zabbix-cloning
+module github.com/tanrakukairo/zabbix-cloning
 
 go 1.23
 

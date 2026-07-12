@@ -12,8 +12,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
-	"github.com/t2-f/zabbix-cloning/internal/config"
-	"github.com/t2-f/zabbix-cloning/internal/model"
+	"github.com/tanrakukairo/zabbix-cloning/internal/config"
+	"github.com/tanrakukairo/zabbix-cloning/internal/model"
 )
 
 type DynamoDB struct {

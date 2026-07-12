@@ -3,8 +3,8 @@ package clone
 import (
 	"testing"
 
-	"github.com/t2-f/zabbix-cloning/internal/model"
-	"github.com/t2-f/zabbix-cloning/internal/zabbix"
+	"github.com/tanrakukairo/zabbix-cloning/internal/model"
+	"github.com/tanrakukairo/zabbix-cloning/internal/zabbix"
 )
 
 func TestNormalizeSettingsConfigSupportsZabbix70(t *testing.T) {

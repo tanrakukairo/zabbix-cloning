@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/t2-f/zabbix-cloning/internal/model"
+	"github.com/tanrakukairo/zabbix-cloning/internal/model"
 )
 
 type interfaceCounts struct{ Total, Create, Update, Delete, Skip, Failed int }

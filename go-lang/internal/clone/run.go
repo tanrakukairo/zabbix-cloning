@@ -7,10 +7,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/t2-f/zabbix-cloning/internal/config"
-	"github.com/t2-f/zabbix-cloning/internal/logx"
-	"github.com/t2-f/zabbix-cloning/internal/model"
-	"github.com/t2-f/zabbix-cloning/internal/zabbix"
+	"github.com/tanrakukairo/zabbix-cloning/internal/config"
+	"github.com/tanrakukairo/zabbix-cloning/internal/logx"
+	"github.com/tanrakukairo/zabbix-cloning/internal/model"
+	"github.com/tanrakukairo/zabbix-cloning/internal/zabbix"
 )
 
 func Run(ctx context.Context, cfg *config.Config, logger *logx.Logger) error {

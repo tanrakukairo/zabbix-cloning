@@ -7,8 +7,8 @@ import (
 	"strconv"
 
 	redislib "github.com/redis/go-redis/v9"
-	"github.com/t2-f/zabbix-cloning/internal/config"
-	"github.com/t2-f/zabbix-cloning/internal/model"
+	"github.com/tanrakukairo/zabbix-cloning/internal/config"
+	"github.com/tanrakukairo/zabbix-cloning/internal/model"
 )
 
 type Redis struct{ versions, data *redislib.Client }

@@ -6,8 +6,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/t2-f/zabbix-cloning/internal/model"
-	"github.com/t2-f/zabbix-cloning/internal/store"
+	"github.com/tanrakukairo/zabbix-cloning/internal/model"
+	"github.com/tanrakukairo/zabbix-cloning/internal/store"
 )
 
 func (e *Engine) LoadReplicaData(ctx context.Context, direct *Engine) error {

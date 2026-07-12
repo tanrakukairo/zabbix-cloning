@@ -8,8 +8,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/t2-f/zabbix-cloning/internal/config"
-	viewcmd "github.com/t2-f/zabbix-cloning/internal/view"
+	"github.com/tanrakukairo/zabbix-cloning/internal/config"
+	viewcmd "github.com/tanrakukairo/zabbix-cloning/internal/view"
 )
 
 func main() { os.Exit(run()) }

@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/t2-f/zabbix-cloning/internal/config"
+	"github.com/tanrakukairo/zabbix-cloning/internal/config"
 )
 
 func TestDynamoDBFileCompatibility(t *testing.T) {

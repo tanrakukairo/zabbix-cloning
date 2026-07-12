@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/t2-f/zabbix-cloning/internal/model"
+	"github.com/tanrakukairo/zabbix-cloning/internal/model"
 )
 
 func TestFileRoundTrip(t *testing.T) {

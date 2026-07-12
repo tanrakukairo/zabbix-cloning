@@ -5,8 +5,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/t2-f/zabbix-cloning/internal/model"
-	"github.com/t2-f/zabbix-cloning/internal/zabbix"
+	"github.com/tanrakukairo/zabbix-cloning/internal/model"
+	"github.com/tanrakukairo/zabbix-cloning/internal/zabbix"
 )
 
 var settings70Properties = makeStringSet(`

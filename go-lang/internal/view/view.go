@@ -7,9 +7,9 @@ import (
 	"io"
 	"sort"
 
-	"github.com/t2-f/zabbix-cloning/internal/config"
-	"github.com/t2-f/zabbix-cloning/internal/model"
-	"github.com/t2-f/zabbix-cloning/internal/store"
+	"github.com/tanrakukairo/zabbix-cloning/internal/config"
+	"github.com/tanrakukairo/zabbix-cloning/internal/model"
+	"github.com/tanrakukairo/zabbix-cloning/internal/store"
 )
 
 func Run(ctx context.Context, cfg *config.Config, out io.Writer) error {

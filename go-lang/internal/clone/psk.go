@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/t2-f/zabbix-cloning/internal/model"
+	"github.com/tanrakukairo/zabbix-cloning/internal/model"
 )
 
 type pskCredential struct {

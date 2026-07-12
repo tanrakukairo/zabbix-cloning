@@ -8,9 +8,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/t2-f/zabbix-cloning/internal/clone"
-	"github.com/t2-f/zabbix-cloning/internal/config"
-	"github.com/t2-f/zabbix-cloning/internal/logx"
+	"github.com/tanrakukairo/zabbix-cloning/internal/clone"
+	"github.com/tanrakukairo/zabbix-cloning/internal/config"
+	"github.com/tanrakukairo/zabbix-cloning/internal/logx"
 )
 
 func main() { os.Exit(run()) }

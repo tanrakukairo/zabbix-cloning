@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/t2-f/zabbix-cloning/internal/model"
+	"github.com/tanrakukairo/zabbix-cloning/internal/model"
 )
 
 const Version = "0.2.0"

@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/t2-f/zabbix-cloning/internal/model"
+	"github.com/tanrakukairo/zabbix-cloning/internal/model"
 )
 
 type File struct{ path string }
