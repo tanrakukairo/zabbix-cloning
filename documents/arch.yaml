@@ -1,0 +1,77 @@
+project:
+  name: Zabbix Cloning
+  primary_implementation: Go
+  license: MIT
+  implementations:
+    go:
+      path: go-lang
+      go: "1.23+"
+      zabbix: "6.0+"
+    python_prototype:
+      path: prototype
+      python: "3.6+"
+      zabbix: "4.0+"
+      purpose: compatibility for pre-6.0 direct database operations
+
+entrypoints:
+  clone: go-lang/cmd/zc
+  view: go-lang/cmd/view
+
+packages:
+  config:
+    path: go-lang/internal/config
+    responsibility: CLI, environment variables, JSON configuration and defaults
+  zabbix:
+    path: go-lang/internal/zabbix
+    responsibility: JSON-RPC, token/password authentication and version detection
+  model:
+    path: go-lang/internal/model
+    responsibility: version metadata and datastore records
+  store:
+    path: go-lang/internal/store
+    backends: [file, redis, dydb]
+  clone:
+    path: go-lang/internal/clone
+    responsibility: master export, replica apply, hosts and interfaces
+  view:
+    path: go-lang/internal/view
+    responsibility: datastore inspection
+
+datastore_contract:
+  version_fields: [VERSION_ID, UNIXTIME, MASTER_VERSION, DESCRIPTION]
+  data_fields: [VERSION_ID, DATA_ID, METHOD, NAME, DATA]
+  backends:
+    file:
+      format: bzip2 JSON
+      filename: "{VERSION_ID}_{UNIXTIME}_{MASTER_VERSION}.bz2"
+    redis:
+      version_db: 0
+      data_db: 1
+      data_format: bzip2 JSON hash values
+    dydb:
+      version_table: ZC_VERSION
+      data_table: ZC_DATA
+      data_format: bzip2 JSON binary attribute
+    direct:
+      persistence: false
+
+clone_flow:
+  common:
+    - parse configuration
+    - connect and authenticate
+    - detect Zabbix version
+    - collect local state
+  master:
+    - ensure host ZC_UUID tags
+    - export configuration
+    - normalize ID references
+    - save version and dataset
+    - set version macro
+  replica:
+    - load selected version
+    - apply global and PRE API data
+    - import groups and templates
+    - apply hosts and interfaces
+    - apply POST and ACCOUNT API data
+    - apply authentication and media settings
+    - set version macro

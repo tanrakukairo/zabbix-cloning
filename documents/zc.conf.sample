@@ -1,0 +1,67 @@
+{
+  "node": "monitor",
+  "role": "replica",
+  "endpoint": "https://zabbix.example.com",
+  "user": "Admin",
+  "secret_file": "zc.secret",
+  "self_cert": false,
+  "dry_run": false,
+  "update_password": false,
+  "initialize": false,
+  "useip": false,
+  "host_update": true,
+  "force_host_update": false,
+  "delete_host": false,
+  "delete_api": false,
+  "skip_template": false,
+  "skip_host": false,
+  "template_separate_num": 100,
+  "checknow_execute": false,
+  "checknow_interval": ["1h"],
+  "checknow_wait": 30,
+  "disable_monitoring": false,
+  "description": "Configuration snapshot for the replica node",
+  "store_type": "file",
+  "file_store_path": "/var/lib/zabbix/zc",
+  "store_connect": {
+    "aws_region": "ap-northeast-1",
+    "aws_endpoint_url": "http://localhost:4566",
+    "redis_host": "localhost",
+    "redis_port": 6379,
+    "direct_node": "master",
+    "direct_endpoint": "https://master.example.com"
+  },
+  "settings": {
+    "timeout": {
+      "external_check": "15s"
+    },
+    "severity": {
+      "2": {
+        "name": "Warning",
+        "color": "FFC859"
+      }
+    }
+  },
+  "media_settings": {
+    "Email": {
+      "Admin": {
+        "to": ["alert@example.com"],
+        "severity": {
+          "0": true,
+          "1": true,
+          "2": true,
+          "3": true,
+          "4": true,
+          "5": true
+        },
+        "work_time": {
+          "Mon": "00:00-24:00",
+          "Tue": "00:00-24:00",
+          "Wed": "00:00-24:00",
+          "Thu": "00:00-24:00",
+          "Fri": "00:00-24:00"
+        }
+      }
+    }
+  }
+}
