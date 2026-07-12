@@ -83,31 +83,47 @@ Usage:
   zc clone [options]
 
 Core options:
-  -n, --node NAME                 Zabbix node name
-  -r, --role master|worker|replica
-  -e, --endpoint URL              Zabbix frontend URL
-  -t, --token TOKEN               API token
-  -u, --user USER                 API user
-  -p, --password PASSWORD         API password
-  -y, --yes                       Skip confirmation
-  -q, --quiet                     Hide progress output
+  -n, --node NAME                   Zabbix node name
+  -r, --role master|worker|replica  Select the execution role
+  -e, --endpoint URL                Zabbix frontend URL
+  -t, --token TOKEN                 API token
+  -u, --user USER                   API user
+  -p, --password PASSWORD           API password
+  -y, --yes                         Skip confirmation
+  -q, --quiet                       Hide progress output
 
 Processing options:
-  --dry.run --initialize --useip --host.update --force.host.update --no.uuid
-  --delete.host --delete.api --skip.template --skip.host
-  --checknow.execute --checknow.interval VALUE... --disable.monitoring
+  --dry.run                         Simulate changes without writing to Zabbix
+  --update.password                 Update cloned user passwords
+  --initialize                      Reset the target before applying settings
+  --useip                           Resolve interface DNS names to IP addresses
+  --host.update                     Update existing hosts
+  --force.host.update               Update matching ZC_UUID hosts with renamed hosts
+  --no.uuid                         Accept the legacy UUID compatibility option
+  --delete.host                     Delete hosts not in the source data
+  --delete.api                      Delete API-managed settings not in the source data
+  --skip.template                   Skip template export and import
+  --skip.host                       Skip host application
+  --template.separate.num N         Split master template exports into N parts
+  --checknow.execute                Run LLD rules and matching items immediately
+  --checknow.interval VALUE...      Set intervals targeted by CheckNow
+  --disable.monitoring              Disable monitoring for applied hosts
+  --php.worker.num N                Set parallel host create/update workers
 
 Store options:
-  -s, --store.type file|redis|dydb|direct
-  -se, --store.endpoint REGION|URL|HOST
-  -sp, --store.port PORT
-  -sa, --store.access VALUE
-  -sc, --store.credential VALUE
-  --file.store.path PATH
+  -s, --store.type file|redis|dydb|direct  Select the configuration store
+  -se, --store.endpoint REGION|URL|HOST    Set the store endpoint
+  -sp, --store.port PORT                   Set the Redis port
+  -sa, --store.access VALUE                Set AWS access key or direct node name
+  -sc, --store.credential VALUE            Set a store credential or direct token
+  --file.store.path PATH                   Set the file-store directory
 
 Configuration/logging:
-  -f, --config.file FILE --secret.file FILE --no.config.files
-  -l, --log.level LEVEL --log.file FILE
+  -f, --config.file FILE                   Load a JSON configuration file
+  --secret.file FILE                       Load a JSON secret file
+  --no.config.files                        Do not load configuration files
+  -l, --log.level LEVEL                    Set the log level
+  --log.file FILE                          Write logs to a file
 `
 }
 
@@ -119,13 +135,20 @@ Usage:
   view showdata --version UUID [--method METHOD...] [--name NAME...]
 
 Options:
-  --id.only
-  -s, --store.type file|redis|dydb|direct
-  -se, --store.endpoint REGION|URL|HOST
-  -sp, --store.port PORT
-  -sa, --store.access VALUE
-  -sc, --store.credential VALUE
-  --file.store.path PATH
-  -f, --config.file FILE --secret.file FILE --no.config.files
+  -v, --version UUID                       Select the store version
+  --method METHOD...                       Filter by configuration method
+  --name NAME...                           Filter by object name
+  --id.only                                Display only IDs and names
+  -s, --store.type file|redis|dydb|direct  Select the configuration store
+  -se, --store.endpoint REGION|URL|HOST    Set the store endpoint
+  -sp, --store.port PORT                   Set the Redis port
+  -sa, --store.access VALUE                Set AWS access key or direct node name
+  -sc, --store.credential VALUE            Set a store credential or direct token
+  --file.store.path PATH                   Set the file-store directory
+  -f, --config.file FILE                   Load a JSON configuration file
+  --secret.file FILE                       Load a JSON secret file
+  --no.config.files                        Do not load configuration files
+  -l, --log.level LEVEL                    Set the log level
+  --log.file FILE                          Write logs to a file
 `
 }
