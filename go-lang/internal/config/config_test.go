@@ -47,6 +47,24 @@ func TestDryRunOption(t *testing.T) {
 	}
 }
 
+func TestCheckNowIntervalAcceptsMultipleValues(t *testing.T) {
+	cfg, err := Parse([]string{
+		"clone", "--no.config.files", "--checknow.interval", "1h", "CHECKNOW_INTERVAL", "{$ALREADY_A_MACRO}",
+	}, "clone")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"1h", "CHECKNOW_INTERVAL", "{$ALREADY_A_MACRO}"}
+	if len(cfg.CheckNowInterval) != len(want) {
+		t.Fatalf("unexpected intervals: %#v", cfg.CheckNowInterval)
+	}
+	for i, value := range want {
+		if cfg.CheckNowInterval[i] != value {
+			t.Fatalf("unexpected intervals: %#v", cfg.CheckNowInterval)
+		}
+	}
+}
+
 func TestEnvironmentOverridesConfigFile(t *testing.T) {
 	configFile := filepath.Join(t.TempDir(), "zc.conf")
 	if err := os.WriteFile(configFile, []byte(`{"node":"from-file"}`), 0o600); err != nil {

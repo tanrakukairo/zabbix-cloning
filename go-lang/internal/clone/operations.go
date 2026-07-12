@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -232,27 +233,36 @@ func (e *Engine) runCheckNow(ctx context.Context, name string, targets []any, sk
 }
 
 func normalizeIntervals(values []string) []string {
-	pattern := regexp.MustCompile(`^([0-9]+)([mhd]?)$`)
+	durationPattern := regexp.MustCompile(`^([0-9]+)([mhd]?)$`)
+	macroPattern := regexp.MustCompile(`^\{\$[^{}]+\}$`)
 	set := map[string]bool{}
 	for _, value := range values {
-		match := pattern.FindStringSubmatch(value)
-		if len(match) != 3 {
+		value = strings.TrimSpace(value)
+		if value == "" {
 			continue
 		}
-		number, _ := strconv.Atoi(match[1])
-		switch match[2] {
-		case "m":
-			number *= 60
-		case "h":
-			number *= 3600
-		case "d":
-			number *= 86400
+		if match := durationPattern.FindStringSubmatch(value); len(match) == 3 {
+			number, _ := strconv.Atoi(match[1])
+			switch match[2] {
+			case "m":
+				number *= 60
+			case "h":
+				number *= 3600
+			case "d":
+				number *= 86400
+			}
+			set[fmt.Sprint(number)] = true
+			continue
 		}
-		set[fmt.Sprint(number)] = true
+		if !macroPattern.MatchString(value) {
+			value = "{$" + value + "}"
+		}
+		set[value] = true
 	}
 	result := make([]string, 0, len(set))
 	for value := range set {
 		result = append(result, value)
 	}
+	sort.Strings(result)
 	return result
 }

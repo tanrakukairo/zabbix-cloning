@@ -14,7 +14,7 @@ import (
 	"github.com/tanrakukairo/zabbix-cloning/internal/model"
 )
 
-const Version = "0.2.0"
+const Version = "0.2.1"
 
 type Config struct {
 	Command  string
