@@ -19,14 +19,15 @@ import (
 )
 
 type Client struct {
-	endpoint  string
-	frontend  string
-	token     string
-	http      *http.Client
-	requestID atomic.Uint64
-	dryRunMu  sync.Mutex
-	dryRun    bool
-	dryRunOps map[string]int
+	endpoint   string
+	frontend   string
+	token      string
+	authHeader bool
+	http       *http.Client
+	requestID  atomic.Uint64
+	dryRunMu   sync.Mutex
+	dryRun     bool
+	dryRunOps  map[string]int
 }
 
 type rpcRequest struct {
@@ -98,6 +99,10 @@ func (c *Client) SetDryRun(enabled bool) {
 	c.dryRunMu.Lock()
 	defer c.dryRunMu.Unlock()
 	c.dryRun = enabled
+}
+
+func (c *Client) SetVersion(version Version) {
+	c.authHeader = version.AtLeast(7, 2)
 }
 
 func (c *Client) DryRunMethods() map[string]int {
@@ -192,7 +197,11 @@ func (c *Client) Call(ctx context.Context, method string, params any) (any, erro
 	if method == "apiinfo.version" {
 		auth = ""
 	}
-	payload, err := json.Marshal(rpcRequest{JSONRPC: "2.0", Method: method, Params: params, Auth: auth, ID: id})
+	bodyAuth := auth
+	if c.authHeader {
+		bodyAuth = ""
+	}
+	payload, err := json.Marshal(rpcRequest{JSONRPC: "2.0", Method: method, Params: params, Auth: bodyAuth, ID: id})
 	if err != nil {
 		return nil, err
 	}
@@ -201,6 +210,9 @@ func (c *Client) Call(ctx context.Context, method string, params any) (any, erro
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json-rpc")
+	if c.authHeader && auth != "" {
+		req.Header.Set("Authorization", "Bearer "+auth)
+	}
 	response, err := c.http.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", method, err)

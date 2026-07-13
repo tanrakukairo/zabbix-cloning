@@ -145,3 +145,10 @@ func TestDryRunSkipsDatastoreSave(t *testing.T) {
 		t.Fatalf("dry run saved to datastore: %d", backend.saveCalls)
 	}
 }
+
+func TestPrepareReplicaDefersVersionSelectionForDirectStore(t *testing.T) {
+	engine := &Engine{Config: &config.Config{Role: "replica", StoreType: "direct"}}
+	if err := engine.prepareReplica(context.Background()); err != nil {
+		t.Fatalf("direct mode selected a version before loading its source: %v", err)
+	}
+}

@@ -18,6 +18,9 @@ func (e *Engine) LoadReplicaData(ctx context.Context, direct *Engine) error {
 		if err := direct.CreateMasterData(ctx); err != nil {
 			return err
 		}
+		if e.Version.Float() < direct.NewVersion.MasterVersion {
+			return fmt.Errorf("target Zabbix %s is older than direct master %.1f", e.Version.String(), direct.NewVersion.MasterVersion)
+		}
 		e.Dataset = direct.Dataset
 		e.NewVersion = direct.NewVersion
 		e.NewVersion.VersionID = fmt.Sprintf("__DIRECT_MASTER_%s__", model.ZabbixTime())
@@ -173,7 +176,9 @@ func (e *Engine) ApplyAPISection(ctx context.Context, section string) error {
 func (e *Engine) prepareSpecialAPIItem(method, name string, data model.Object) bool {
 	switch method {
 	case "action":
-		e.normalizeAction(name, data)
+		if !e.normalizeAction(name, data) {
+			return false
+		}
 	case "correlation":
 		normalizeCorrelation(data)
 	case "drule":
@@ -240,8 +245,9 @@ func (e *Engine) prepareSpecialAPIItem(method, name string, data model.Object) b
 	return true
 }
 
-func (e *Engine) normalizeAction(name string, data model.Object) {
+func (e *Engine) normalizeAction(name string, data model.Object) bool {
 	normalizeActionFields(data, true)
+	e.resolveActionNames(data)
 	if e.Local["action"][name] != nil {
 		delete(data, "eventsource")
 	}
@@ -249,9 +255,41 @@ func (e *Engine) normalizeAction(name string, data model.Object) {
 	for _, condition := range objects(filter["conditions"]) {
 		method := map[int]string{0: "hostgroup", 1: "host", 13: "template"}[model.Int(condition["conditiontype"])]
 		if method != "" && condition["value"] != nil {
+			if !e.IsReplica() && e.IDReplace[method][model.String(condition["value"])] == nil {
+				return false
+			}
 			condition["value"] = e.Params.Replace(method, condition["value"], e.IDReplace)
 		}
 	}
+	return true
+}
+
+func (e *Engine) resolveActionNames(value any) {
+	methods := map[string]string{
+		"userid": "user", "usrgrpid": "usergroup", "hostid": "host",
+		"groupid": "hostgroup", "templateid": "template", "scriptid": "script", "mediatypeid": "mediatype",
+	}
+	var resolve func(any)
+	resolve = func(current any) {
+		switch data := current.(type) {
+		case model.Object:
+			for key, child := range data {
+				if method := methods[key]; method != "" {
+					if item := e.Local[method][model.String(child)]; item != nil {
+						data[key] = item.ID
+					}
+				}
+				resolve(data[key])
+			}
+		case map[string]any:
+			resolve(model.Object(data))
+		case []any:
+			for _, child := range data {
+				resolve(child)
+			}
+		}
+	}
+	resolve(value)
 }
 
 func normalizeActionFields(data model.Object, replica bool) {

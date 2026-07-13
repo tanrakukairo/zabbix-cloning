@@ -66,6 +66,33 @@ func NewParameters(version zabbix.Version) (*Parameters, error) {
 			data.Methods["proxy"] = proxy
 		}
 	}
+	for method, spec := range data.Methods {
+		if spec.ID == "" {
+			continue
+		}
+		output, ok := spec.Options["output"].([]any)
+		if !ok {
+			continue
+		}
+		required := []string{spec.ID}
+		if method == "template" {
+			required = append(required, "uuid")
+		}
+		for _, requiredField := range required {
+			found := false
+			for _, field := range output {
+				if model.String(field) == requiredField {
+					found = true
+					break
+				}
+			}
+			if !found {
+				output = append(output, requiredField)
+			}
+		}
+		spec.Options["output"] = output
+		data.Methods[method] = spec
+	}
 	params := &Parameters{
 		Methods: data.Methods, Global: data.Sections.Global, ConfigExport: data.Sections.ConfigExport,
 		Pre: data.Sections.Pre, Mid: data.Sections.Mid, Post: data.Sections.Post, Account: data.Sections.Account,

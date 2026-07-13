@@ -42,3 +42,16 @@ func TestQuietProgressLogsEveryFiftyAndFinalRemainder(t *testing.T) {
 		t.Fatalf("failure was not logged: %s", log)
 	}
 }
+
+func TestApplyProgressRetryClearsFinalFailure(t *testing.T) {
+	logger, err := logx.New("test", "INFO", "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	progress := newApplyProgress(logger, false, "Template Import", 1, "success")
+	progress.fail("dependent-template", errors.New("dependency missing"))
+	progress.retrySucceeded("dependent-template", "success")
+	if progress.counts["success"] != 1 || progress.counts["failed"] != 0 || len(progress.failures) != 0 || progress.done != 1 {
+		t.Fatalf("retry did not recover progress: %#v", progress)
+	}
+}

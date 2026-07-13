@@ -8,7 +8,7 @@ backup tool.
 Think of Zabbix configuration as a potted plant: ZC helps with repotting and
 cloning it.
 
-The Go version supports Zabbix 6.0 through 7.0. For versions earlier than 6.0,
+The Go version supports Zabbix 6.0 through 7.4. For versions earlier than 6.0,
 use the [Python legacy version](prototype/readme_prototype.md).
 
 ## Main Features
@@ -28,10 +28,10 @@ updates the `{$ZC_VERSION}` global macro.
 ## Supported Environment
 
 - Go 1.23 or later
-- Zabbix 6.0, 6.2, 6.4, and 7.0
+- Zabbix 6.0, 6.2, 6.4, 7.0, 7.2, and 7.4
 - Windows or Linux
 
-Development releases and Zabbix 7.2 or later are not currently supported.
+Development releases are not currently supported.
 
 ## Build
 
@@ -473,7 +473,7 @@ other.
 
 ## Verification Status
 
-The following have been verified against a Zabbix 7.0 instance:
+The following have been verified against Zabbix 7.0, 7.2, and 7.4 instances:
 
 - Master storage to file, Redis, and DynamoDB
 - Cross-reading stores between Go and Python
@@ -481,6 +481,9 @@ The following have been verified against a Zabbix 7.0 instance:
 - Host-interface difference detection
 - Action, maintenance, drule, correlation, role, user group, and authentication
 - `{$ZC_VERSION}` updates
+- Replica and worker application from a 7.0 master to 7.2 and 7.4
+- Replica and worker application from a 7.2 replica promoted to master to 7.2 and 7.4
+- Replica and worker application from a 7.4 replica promoted to master to 7.4
 
 The following Zabbix configuration types are supported:
 
@@ -511,7 +514,7 @@ The following Zabbix configuration types are supported:
 ## Unsupported
 
 - Zabbix versions earlier than 6.0; use the
-  [Python legacy version](prototype/readme.md)
+  [Python legacy version](prototype/readme_prototype.md)
 - Complete backups of Zabbix screens, dashboards, and similar objects
 - Automatic restoration of secrets unavailable through the API
 - Development releases and Zabbix 7.2 or later

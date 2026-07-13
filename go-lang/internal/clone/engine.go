@@ -55,11 +55,12 @@ func New(ctx context.Context, cfg *config.Config, logger *logx.Logger) (*Engine,
 	if err := api.CheckServerName(ctx, cfg.Node, cfg.Token, cfg.User, cfg.Password); err != nil {
 		return nil, err
 	}
-	if err := api.Authenticate(ctx, cfg.Token, cfg.User, cfg.Password); err != nil {
-		return nil, err
-	}
 	version, err := api.Version(ctx)
 	if err != nil {
+		return nil, err
+	}
+	api.SetVersion(version)
+	if err := api.Authenticate(ctx, cfg.Token, cfg.User, cfg.Password); err != nil {
 		return nil, err
 	}
 	params, err := NewParameters(version)
@@ -205,6 +206,11 @@ func (e *Engine) ensureHostUUIDs(ctx context.Context) error {
 }
 
 func (e *Engine) prepareReplica(ctx context.Context) error {
+	// Direct mode builds the source dataset after the target is prepared.
+	// Version compatibility is checked once that dataset has been loaded.
+	if e.Config.StoreType == "direct" {
+		return nil
+	}
 	version, err := store.Latest(e.Versions, e.Config.TargetVersion)
 	if err != nil {
 		return err

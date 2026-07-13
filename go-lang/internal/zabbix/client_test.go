@@ -69,3 +69,43 @@ func TestMutationMethodClassification(t *testing.T) {
 		}
 	}
 }
+
+func TestVersionSpecificAuthenticationTransport(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		version    string
+		wantHeader bool
+	}{
+		{name: "7.0 body auth", version: "7.0.21"},
+		{name: "7.2 bearer auth", version: "7.2.15", wantHeader: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				var body map[string]any
+				if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+					t.Fatal(err)
+				}
+				header := request.Header.Get("Authorization")
+				if test.wantHeader {
+					if header != "Bearer test-token" || body["auth"] != nil {
+						t.Errorf("expected bearer header without body auth: header=%q body=%#v", header, body)
+					}
+				} else if header != "" || body["auth"] != "test-token" {
+					t.Errorf("expected body auth without bearer header: header=%q body=%#v", header, body)
+				}
+				_ = json.NewEncoder(writer).Encode(map[string]any{"jsonrpc": "2.0", "result": []any{}, "id": body["id"]})
+			}))
+			defer server.Close()
+
+			client, err := New(server.URL, false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			client.token = "test-token"
+			client.SetVersion(ParseVersion(test.version))
+			if _, err := client.Call(context.Background(), "host.get", map[string]any{}); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}

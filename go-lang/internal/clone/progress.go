@@ -39,6 +39,24 @@ func (p *applyProgress) fail(target string, err error) {
 	p.report(false)
 }
 
+func (p *applyProgress) retrySucceeded(target, action string) {
+	if p.counts["failed"] > 0 {
+		p.counts["failed"]--
+	}
+	p.counts[action]++
+	for index, failure := range p.failures {
+		if failure == target {
+			p.failures = append(p.failures[:index], p.failures[index+1:]...)
+			break
+		}
+	}
+	p.report(false)
+}
+
+func (p *applyProgress) retryFailed(target string, err error) {
+	p.log.Failuref("%s retry [%s]: %v", p.label, target, err)
+}
+
 func (p *applyProgress) finish() {
 	p.report(true)
 	if p.quiet {

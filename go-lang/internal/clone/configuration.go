@@ -2,6 +2,7 @@ package clone
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -57,9 +58,21 @@ func (e *Engine) ApplyConfiguration(ctx context.Context) error {
 		return err
 	}
 	progress := newApplyProgress(e.Log, e.Config.Quiet, "Template Import", len(templates), "success")
+	type failedImport struct {
+		name     string
+		document model.Object
+	}
+	var failed []failedImport
 	for _, group := range groups {
 		for _, template := range group {
 			name := model.String(template["name"])
+			if e.Config.SkipTemplate {
+				continue
+			}
+			if err := e.prepareTemplateIdentity(ctx, template); err != nil {
+				progress.fail(name, err)
+				continue
+			}
 			document := model.Object{"templates": []any{template}}
 			needle := "/" + name + "/"
 			var templateTriggers []any
@@ -71,15 +84,20 @@ func (e *Engine) ApplyConfiguration(ctx context.Context) error {
 			if len(templateTriggers) > 0 {
 				document["triggers"] = templateTriggers
 			}
-			if e.Config.SkipTemplate {
-				continue
-			}
 			if err := e.importConfiguration(ctx, document, name); err != nil {
 				progress.fail(name, err)
+				failed = append(failed, failedImport{name: name, document: document})
 				continue
 			}
 			progress.record("success")
 		}
+	}
+	for _, retry := range failed {
+		if err := e.importConfiguration(ctx, retry.document, retry.name); err != nil {
+			progress.retryFailed(retry.name, err)
+			continue
+		}
+		progress.retrySucceeded(retry.name, "success")
 	}
 	if e.Config.SkipTemplate {
 		e.Log.Infof("Template Import: SKIP.")
@@ -91,6 +109,61 @@ func (e *Engine) ApplyConfiguration(ctx context.Context) error {
 		return err
 	}
 	return nil
+}
+
+func (e *Engine) prepareTemplateIdentity(ctx context.Context, template model.Object) error {
+	sourceUUID := model.String(template["uuid"])
+	if sourceUUID == "" {
+		return nil
+	}
+	name := model.String(template["name"])
+	replacementUUID := crossVersionUUID(sourceUUID)
+	regenerate := false
+	for localName, local := range e.Local["template"] {
+		localUUID := model.String(local.Data["uuid"])
+		if localName == name && localUUID == replacementUUID {
+			regenerate = true
+			continue
+		}
+		if localName == name || localUUID != sourceUUID {
+			continue
+		}
+		if _, err := e.API.Call(ctx, "template.delete", []any{local.ID}); err != nil {
+			return fmt.Errorf("delete UUID-conflicting template %s: %w", localName, err)
+		}
+		e.virtualDelete("template", localName)
+		e.Log.Infof("Template UUID conflict: replace %s with %s", localName, name)
+		regenerate = true
+	}
+	if regenerate {
+		regenerateUUIDs(template)
+	}
+	return nil
+}
+
+func regenerateUUIDs(value any) {
+	switch current := value.(type) {
+	case model.Object:
+		if uuid := model.String(current["uuid"]); uuid != "" {
+			current["uuid"] = crossVersionUUID(uuid)
+		}
+		for _, child := range current {
+			regenerateUUIDs(child)
+		}
+	case map[string]any:
+		regenerateUUIDs(model.Object(current))
+	case []any:
+		for _, child := range current {
+			regenerateUUIDs(child)
+		}
+	}
+}
+
+func crossVersionUUID(uuid string) string {
+	value := sha256.Sum256([]byte("zc-cross-version:" + uuid))
+	value[6] = value[6]&0x0f | 0x40
+	value[8] = value[8]&0x3f | 0x80
+	return fmt.Sprintf("%x", value[:16])
 }
 
 func (e *Engine) importConfiguration(ctx context.Context, data model.Object, target string) error {
