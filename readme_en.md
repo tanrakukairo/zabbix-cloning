@@ -115,8 +115,7 @@ The following examples assume binaries built in `go-lang`.
 ### Save master data to a file store
 
 ```sh
-bin/zc clone --no.config.files --yes \
-  --role master \
+bin/zc master --no.config.files --yes \
   --node master-zabbix \
   --endpoint https://master.example.com \
   --token TOKEN \
@@ -127,8 +126,7 @@ bin/zc clone --no.config.files --yes \
 ### Apply data to a replica
 
 ```sh
-bin/zc clone --no.config.files --yes \
-  --role replica \
+bin/zc replica --no.config.files --yes \
   --node replica-zabbix \
   --endpoint https://replica.example.com \
   --token TOKEN \
@@ -140,8 +138,8 @@ bin/zc clone --no.config.files --yes \
 ### Redis
 
 ```sh
-bin/zc clone --no.config.files --yes \
-  --role master --node monitor \
+bin/zc master --no.config.files --yes \
+  --node monitor \
   --endpoint https://zabbix.example.com --token TOKEN \
   --store.type redis --store.endpoint localhost --store.port 6379
 ```
@@ -149,8 +147,8 @@ bin/zc clone --no.config.files --yes \
 ### DynamoDB or LocalStack
 
 ```sh
-bin/zc clone --no.config.files --yes \
-  --role master --node monitor \
+bin/zc master --no.config.files --yes \
+  --node monitor \
   --endpoint https://zabbix.example.com --token TOKEN \
   --store.type dydb \
   --store.endpoint http://localhost:4566 \
@@ -179,14 +177,16 @@ bin/view showdata --no.config.files \
 
 `--method` and `--name` accept multiple values.
 
-## clone Options
+## zc Options
+
+The first argument to `zc` must be the execution role: `master`, `worker`, or
+`replica`. There is no option for selecting the execution role.
 
 Option names use dot separators. Boolean options are enabled when specified.
 
 | Option | Description |
 |---|---|
 | `-n`, `--node NAME` | Target Zabbix node name |
-| `-r`, `--role master\|worker\|replica` | Execution role |
 | `-e`, `--endpoint URL` | Zabbix frontend URL |
 | `-t`, `--token TOKEN` | API token |
 | `-u`, `--user USER` | API user |
@@ -298,7 +298,6 @@ reads secrets only when `--secret.file` or `ZC_SECRET_FILE` is specified.
 ```json
 {
   "node": "monitor",
-  "role": "replica",
   "endpoint": "https://zabbix.example.com",
   "secret_file": "zc.secret",
   "host_update": true,

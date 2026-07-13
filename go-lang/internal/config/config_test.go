@@ -8,11 +8,11 @@ import (
 
 func TestParseDotSeparatedOptions(t *testing.T) {
 	cfg, err := Parse([]string{
-		"clone", "--no.config.files", "--role", "replica",
+		"replica", "--no.config.files",
 		"--node", "monitor", "--store.type", "dydb",
 		"--store.endpoint", "http://localhost:4566",
 		"--skip.host", "--delete.api",
-	}, "clone")
+	}, "zc")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -27,8 +27,31 @@ func TestParseDotSeparatedOptions(t *testing.T) {
 	}
 }
 
+func TestRoleComesFromCommand(t *testing.T) {
+	configFile := filepath.Join(t.TempDir(), "zc.conf")
+	if err := os.WriteFile(configFile, []byte(`{"role":"master"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Parse([]string{"worker", "--config.file", configFile}, "zc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Role != "worker" {
+		t.Fatalf("positional role was not applied: %s", cfg.Role)
+	}
+}
+
+func TestLegacyCloneAndRoleOptionAreRejected(t *testing.T) {
+	if _, err := Parse([]string{"clone", "--no.config.files"}, "zc"); err == nil {
+		t.Fatal("legacy clone command must be rejected")
+	}
+	if _, err := Parse([]string{"master", "--no.config.files", "--role", "replica"}, "zc"); err == nil {
+		t.Fatal("legacy --role option must be rejected")
+	}
+}
+
 func TestForceHostUpdateEnablesHostUpdate(t *testing.T) {
-	cfg, err := Parse([]string{"clone", "--no.config.files", "--force.host.update"}, "clone")
+	cfg, err := Parse([]string{"replica", "--no.config.files", "--force.host.update"}, "zc")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +61,7 @@ func TestForceHostUpdateEnablesHostUpdate(t *testing.T) {
 }
 
 func TestDryRunOption(t *testing.T) {
-	cfg, err := Parse([]string{"clone", "--no.config.files", "--dry.run"}, "clone")
+	cfg, err := Parse([]string{"replica", "--no.config.files", "--dry.run"}, "zc")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,8 +72,8 @@ func TestDryRunOption(t *testing.T) {
 
 func TestCheckNowIntervalAcceptsMultipleValues(t *testing.T) {
 	cfg, err := Parse([]string{
-		"clone", "--no.config.files", "--checknow.interval", "1h", "CHECKNOW_INTERVAL", "{$ALREADY_A_MACRO}",
-	}, "clone")
+		"replica", "--no.config.files", "--checknow.interval", "1h", "CHECKNOW_INTERVAL", "{$ALREADY_A_MACRO}",
+	}, "zc")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +95,7 @@ func TestEnvironmentOverridesConfigFile(t *testing.T) {
 	}
 	t.Setenv("ZC_NODE", "from-environment")
 
-	cfg, err := Parse([]string{"clone", "--config.file", configFile}, "clone")
+	cfg, err := Parse([]string{"master", "--config.file", configFile}, "zc")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +103,7 @@ func TestEnvironmentOverridesConfigFile(t *testing.T) {
 		t.Fatalf("environment must override configuration file: %s", cfg.Node)
 	}
 
-	cfg, err = Parse([]string{"clone", "--config.file", configFile, "--node", "from-cli"}, "clone")
+	cfg, err = Parse([]string{"master", "--config.file", configFile, "--node", "from-cli"}, "zc")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +132,7 @@ func TestSecretFileOverridesConfigFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cfg, err := Parse([]string{"clone", "--config.file", configFile, "--store.type", "redis"}, "clone")
+	cfg, err := Parse([]string{"master", "--config.file", configFile, "--store.type", "redis"}, "zc")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,7 +167,7 @@ func TestSecretFileSelectionPriority(t *testing.T) {
 	}
 	t.Setenv("ZC_SECRET_FILE", environmentSecret)
 
-	cfg, err := Parse([]string{"clone", "--config.file", configFile}, "clone")
+	cfg, err := Parse([]string{"master", "--config.file", configFile}, "zc")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,7 +175,7 @@ func TestSecretFileSelectionPriority(t *testing.T) {
 		t.Fatalf("environment secret file was not selected: %#v", cfg)
 	}
 
-	cfg, err = Parse([]string{"clone", "--config.file", configFile, "--secret.file", cliSecret}, "clone")
+	cfg, err = Parse([]string{"master", "--config.file", configFile, "--secret.file", cliSecret}, "zc")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -169,7 +192,7 @@ func TestCredentialsOverrideSecretFile(t *testing.T) {
 	}
 	t.Setenv("ZC_TOKEN", "from-environment")
 
-	cfg, err := Parse([]string{"clone", "--no.config.files", "--secret.file", secretFile}, "clone")
+	cfg, err := Parse([]string{"master", "--no.config.files", "--secret.file", secretFile}, "zc")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -177,7 +200,7 @@ func TestCredentialsOverrideSecretFile(t *testing.T) {
 		t.Fatalf("environment must override secret file: %s", cfg.Token)
 	}
 
-	cfg, err = Parse([]string{"clone", "--no.config.files", "--secret.file", secretFile, "--token", "from-cli"}, "clone")
+	cfg, err = Parse([]string{"master", "--no.config.files", "--secret.file", secretFile, "--token", "from-cli"}, "zc")
 	if err != nil {
 		t.Fatal(err)
 	}

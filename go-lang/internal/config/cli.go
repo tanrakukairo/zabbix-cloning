@@ -8,7 +8,7 @@ import (
 var aliases = map[string]string{
 	"-l": "log_level", "--log.level": "log_level", "--log.file": "log_file", "-v": "version", "--version": "version",
 	"-q": "quiet", "--quiet": "quiet", "-y": "yes", "--yes": "yes", "-f": "config_file", "--config.file": "config_file",
-	"--secret.file": "secret_file", "--no.config.files": "no_config_files", "-n": "node", "--node": "node", "-r": "role", "--role": "role",
+	"--secret.file": "secret_file", "--no.config.files": "no_config_files", "-n": "node", "--node": "node",
 	"-e": "endpoint", "--endpoint": "endpoint", "-u": "user", "--user": "user", "-p": "password", "--password": "password",
 	"-t": "token", "--token": "token", "--self.cert": "self_cert", "--update.password": "update_password",
 	"--dry.run": "dry_run", "--initialize": "initialize", "--useip": "useip", "--host.update": "host_update", "--force.host.update": "force_host_update",
@@ -76,15 +76,16 @@ func parseArgs(args []string) (map[string]any, error) {
 	return values, nil
 }
 
-func CloneHelp() string {
+func ZCHelp() string {
 	return `Zabbix Cloning ` + Version + `
 
 Usage:
-  zc clone [options]
+  zc master [options]
+  zc worker [options]
+  zc replica [options]
 
 Core options:
   -n, --node NAME                   Zabbix node name
-  -r, --role master|worker|replica  Select the execution role
   -e, --endpoint URL                Zabbix frontend URL
   -t, --token TOKEN                 API token
   -u, --user USER                   API user

@@ -1,6 +1,5 @@
 {
   "node": "monitor",
-  "role": "replica",
   "endpoint": "https://zabbix.example.com",
   "user": "Admin",
   "secret_file": "zc.secret",

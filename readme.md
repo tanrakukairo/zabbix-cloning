@@ -114,8 +114,7 @@ URL指定時のリージョンは`AWS_DEFAULT_REGION`または設定ファイル
 ### masterからfileへ保存
 
 ```sh
-bin/zc clone --no.config.files --yes \
-  --role master \
+bin/zc master --no.config.files --yes \
   --node master-zabbix \
   --endpoint https://master.example.com \
   --token TOKEN \
@@ -126,8 +125,7 @@ bin/zc clone --no.config.files --yes \
 ### replicaへ適用
 
 ```sh
-bin/zc clone --no.config.files --yes \
-  --role replica \
+bin/zc replica --no.config.files --yes \
   --node replica-zabbix \
   --endpoint https://replica.example.com \
   --token TOKEN \
@@ -139,8 +137,8 @@ bin/zc clone --no.config.files --yes \
 ### Redis
 
 ```sh
-bin/zc clone --no.config.files --yes \
-  --role master --node monitor \
+bin/zc master --no.config.files --yes \
+  --node monitor \
   --endpoint https://zabbix.example.com --token TOKEN \
   --store.type redis --store.endpoint localhost --store.port 6379
 ```
@@ -148,8 +146,8 @@ bin/zc clone --no.config.files --yes \
 ### DynamoDBまたはLocalStack
 
 ```sh
-bin/zc clone --no.config.files --yes \
-  --role master --node monitor \
+bin/zc master --no.config.files --yes \
+  --node monitor \
   --endpoint https://zabbix.example.com --token TOKEN \
   --store.type dydb \
   --store.endpoint http://localhost:4566 \
@@ -178,14 +176,16 @@ bin/view showdata --no.config.files \
 
 `--method`と`--name`は複数値を指定できます。
 
-## cloneオプション
+## zcオプション
+
+`zc`の第1引数には実行ロールとして`master`、`worker`、`replica`のいずれかを必ず指定します。
+実行ロールを指定するオプションはありません。
 
 オプション名はドット区切りです。真偽値のオプションは、指定すると有効になります。
 
 | オプション | 内容 |
 |---|---|
 | `-n`, `--node NAME` | 対象Zabbixのノード名 |
-| `-r`, `--role master\|worker\|replica` | 実行ロール |
 | `-e`, `--endpoint URL` | ZabbixフロントエンドURL |
 | `-t`, `--token TOKEN` | APIトークン |
 | `-u`, `--user USER` | APIユーザー |
@@ -289,7 +289,6 @@ CheckNowのアイテムはZabbixが設定適用後に生成するため、dry-ru
 ```json
 {
   "node": "monitor",
-  "role": "replica",
   "endpoint": "https://zabbix.example.com",
   "secret_file": "zc.secret",
   "host_update": true,

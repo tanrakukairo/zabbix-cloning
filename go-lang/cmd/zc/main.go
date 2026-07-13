@@ -15,14 +15,14 @@ import (
 
 func main() { os.Exit(run()) }
 func run() int {
-	cfg, err := config.Parse(os.Args[1:], "clone")
+	cfg, err := config.Parse(os.Args[1:], "zc")
 	if errors.Is(err, config.ErrHelp) {
-		fmt.Print(config.CloneHelp())
+		fmt.Print(config.ZCHelp())
 		return 0
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
-		fmt.Fprint(os.Stderr, config.CloneHelp())
+		fmt.Fprint(os.Stderr, config.ZCHelp())
 		return 2
 	}
 	logger, err := logx.New(cfg.LogName, cfg.LogLevel, cfg.LogFile, cfg.Quiet)

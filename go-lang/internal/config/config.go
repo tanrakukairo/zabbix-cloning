@@ -14,7 +14,7 @@ import (
 	"github.com/tanrakukairo/zabbix-cloning/internal/model"
 )
 
-const Version = "0.2.1"
+const Version = "0.3.0"
 
 type Config struct {
 	Command  string
@@ -85,8 +85,8 @@ func Parse(args []string, mode string) (*Config, error) {
 		return nil, err
 	}
 	command := model.String(values["command"])
-	if mode == "clone" && command != "clone" {
-		return nil, fmt.Errorf("command must be clone")
+	if mode == "zc" && command != "master" && command != "worker" && command != "replica" {
+		return nil, fmt.Errorf("command must be master, worker, or replica")
 	}
 	if mode == "view" && command != "showversions" && command != "showdata" {
 		return nil, fmt.Errorf("command must be showversions or showdata")
@@ -119,6 +119,9 @@ func Parse(args []string, mode string) (*Config, error) {
 		if key != "command" {
 			raw[key] = value
 		}
+	}
+	if mode == "zc" {
+		raw["role"] = command
 	}
 	if secretFile != "" {
 		raw["secret_file"] = secretFile
