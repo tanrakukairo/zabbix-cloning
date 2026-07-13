@@ -56,7 +56,7 @@ func (e *Engine) ApplyConfiguration(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	success, failed := 0, 0
+	progress := newApplyProgress(e.Log, e.Config.Quiet, "Template Import", len(templates), "success")
 	for _, group := range groups {
 		for _, template := range group {
 			name := model.String(template["name"])
@@ -75,18 +75,16 @@ func (e *Engine) ApplyConfiguration(ctx context.Context) error {
 				continue
 			}
 			if err := e.importConfiguration(ctx, document, name); err != nil {
-				failed++
-				e.Log.Errorf("Import Error[%s]: %v", name, err)
+				progress.fail(name, err)
 				continue
 			}
-			success++
-			e.Log.Progress("\r    Template Import: %d/%d (success:%d/failed:%d)", success+failed, len(templates), success, failed)
+			progress.record("success")
 		}
 	}
 	if e.Config.SkipTemplate {
 		e.Log.Infof("Template Import: SKIP.")
 	} else {
-		e.Log.Infof("Template Import: %d/%d (success:%d/failed:%d)", success+failed, len(templates), success, failed)
+		progress.finish()
 	}
 	e.virtualApplyConfiguration()
 	if err := e.Refresh(ctx); err != nil {
@@ -109,7 +107,7 @@ func (e *Engine) importConfiguration(ctx context.Context, data model.Object, tar
 		return err
 	}
 	keys := sortedKeys(data)
-	e.Log.Infof("Template Import: Execute Import target=%s sections=%v", target, keys)
+	e.Log.Debugf("Template Import: Execute Import target=%s sections=%v", target, keys)
 	_, err = e.API.Call(ctx, "configuration.import", model.Object{"format": "json", "rules": e.Params.ImportRules, "source": string(source)})
 	return err
 }

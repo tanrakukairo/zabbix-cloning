@@ -11,7 +11,7 @@ var aliases = map[string]string{
 	"--secret.file": "secret_file", "--no.config.files": "no_config_files", "-n": "node", "--node": "node",
 	"-e": "endpoint", "--endpoint": "endpoint", "-u": "user", "--user": "user", "-p": "password", "--password": "password",
 	"-t": "token", "--token": "token", "--self.cert": "self_cert", "--update.password": "update_password",
-	"--dry.run": "dry_run", "--initialize": "initialize", "--useip": "useip", "--host.update": "host_update", "--force.host.update": "force_host_update",
+	"--dry.run": "dry_run", "--initialize": "initialize", "--initialize.full": "initialize_full", "--useip": "useip", "--host.update": "host_update", "--force.host.update": "force_host_update",
 	"--no.uuid": "no_uuid", "--delete.host": "delete_host", "--delete.api": "delete_api", "--skip.template": "skip_template",
 	"--skip.host": "skip_host", "--template.separate.num": "template_separate_num", "--checknow.execute": "checknow_execute",
 	"--checknow.interval": "checknow_interval", "--disable.monitoring": "disable_monitoring", "--php.worker.num": "php_worker_num",
@@ -24,7 +24,7 @@ var aliases = map[string]string{
 
 var boolFlags = map[string]bool{
 	"quiet": true, "yes": true, "no_config_files": true, "self_cert": true, "update_password": true, "dry_run": true,
-	"initialize": true, "useip": true, "host_update": true, "force_host_update": true, "no_uuid": true,
+	"initialize": true, "initialize_full": true, "useip": true, "host_update": true, "force_host_update": true, "no_uuid": true,
 	"delete_host": true, "delete_api": true, "skip_template": true, "skip_host": true, "checknow_execute": true,
 	"disable_monitoring": true, "id_only": true,
 }
@@ -91,12 +91,13 @@ Core options:
   -u, --user USER                   API user
   -p, --password PASSWORD           API password
   -y, --yes                         Skip confirmation
-  -q, --quiet                       Hide progress output
+  -q, --quiet                       Hide progress and log batch results every 50 items
 
 Processing options:
   --dry.run                         Simulate changes without writing to Zabbix
   --update.password                 Update cloned user passwords
   --initialize                      Reset the target before applying settings
+  --initialize.full                 Delete all deletable target settings before applying
   --useip                           Resolve interface DNS names to IP addresses
   --host.update                     Update existing hosts
   --force.host.update               Update matching ZC_UUID hosts with renamed hosts

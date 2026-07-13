@@ -104,7 +104,7 @@ func (e *Engine) FirstProcess(ctx context.Context) error {
 	if err := e.Refresh(ctx); err != nil {
 		return err
 	}
-	if e.Config.DryRun && e.IsReplica() {
+	if e.Config.DryRun && !e.IsMaster() {
 		e.enableDryRunVirtualState()
 	}
 	if e.IsMaster() {
@@ -215,6 +215,9 @@ func (e *Engine) prepareReplica(ctx context.Context) error {
 	e.NewVersion = version
 	e.Log.Infof("Cloning Version: %s", version.VersionID)
 	if e.Config.Initialize {
+		if e.Config.InitializeFull {
+			return e.initializeFull(ctx)
+		}
 		return e.initializeReplica(ctx)
 	}
 	return nil
@@ -222,23 +225,9 @@ func (e *Engine) prepareReplica(ctx context.Context) error {
 
 func (e *Engine) initializeReplica(ctx context.Context) error {
 	for _, method := range []string{"correlation", "drule", "action", "script", "maintenance"} {
-		spec, ok := e.Params.Methods[method]
-		if !ok {
-			continue
+		if err := e.deleteAllForInitialize(ctx, method, false); err != nil {
+			return err
 		}
-		ids := make([]any, 0, len(e.Local[method]))
-		for _, item := range e.Local[method] {
-			ids = append(ids, item.ID)
-		}
-		if len(ids) > 0 {
-			if _, err := e.API.Call(ctx, method+".delete", ids); err != nil {
-				return fmt.Errorf("initialize %s: %w", method, err)
-			}
-		}
-		if e.dryRunVirtual {
-			e.Local[method] = map[string]*LocalItem{}
-		}
-		_ = spec
 	}
 	return e.Refresh(ctx)
 }

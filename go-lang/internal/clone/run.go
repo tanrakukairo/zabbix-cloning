@@ -15,14 +15,18 @@ import (
 
 func Run(ctx context.Context, cfg *config.Config, logger *logx.Logger) error {
 	logger.Infof("%s", cfg.Summary())
+	reader := bufio.NewReader(os.Stdin)
 	if !cfg.Yes {
 		if cfg.Quiet {
 			return fmt.Errorf("--quiet requires --yes")
 		}
-		fmt.Print("\nContinue? [y/N]: ")
-		line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
-		answer := strings.ToUpper(strings.TrimSpace(line))
-		if answer != "Y" && answer != "YES" {
+		if !confirmExecution(reader, "\nContinue? [y/N]: ") {
+			logger.Infof("[USER ABORT]")
+			return nil
+		}
+	}
+	if cfg.InitializeFull {
+		if !confirmExecution(reader, "FULL INITIALIZE deletes all deletable settings. Continue? [y/N]: ") {
 			logger.Infof("[USER ABORT]")
 			return nil
 		}
@@ -103,6 +107,13 @@ func Run(ctx context.Context, cfg *config.Config, logger *logx.Logger) error {
 	}
 	logger.Infof("[FINISH] %s", model.ZabbixTime())
 	return nil
+}
+
+func confirmExecution(reader *bufio.Reader, prompt string) bool {
+	fmt.Print(prompt)
+	line, _ := reader.ReadString('\n')
+	answer := strings.ToUpper(strings.TrimSpace(line))
+	return answer == "Y" || answer == "YES"
 }
 
 func logDryRunOperations(logger *logx.Logger, api *zabbix.Client) {

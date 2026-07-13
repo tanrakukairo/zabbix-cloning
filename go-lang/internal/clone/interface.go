@@ -8,60 +8,90 @@ import (
 	"github.com/tanrakukairo/zabbix-cloning/internal/model"
 )
 
-type interfaceCounts struct{ Total, Create, Update, Delete, Skip, Failed int }
 type interfacePlan struct {
 	Function       string
 	Update, Target model.Object
 }
+type hostInterfaceWork struct {
+	Host              hostPlan
+	Existing          []model.Object
+	Plans             []interfacePlan
+	Deletes           []model.Object
+	PreparationFailed error
+}
 
-func (e *Engine) updateHostInterfaces(ctx context.Context, host hostPlan) error {
-	updates := make([]model.Object, len(host.Interfaces))
-	for i, value := range host.Interfaces {
-		updates[i] = model.CloneObject(value)
+func (e *Engine) applyHostInterfaces(ctx context.Context, hosts []hostPlan, failedHosts map[string]bool) {
+	var works []hostInterfaceWork
+	total := 0
+	for _, host := range hosts {
+		if host.Function != "update" || len(host.Interfaces) == 0 || failedHosts[host.Name] {
+			continue
+		}
+		updates := make([]model.Object, len(host.Interfaces))
+		for i, value := range host.Interfaces {
+			updates[i] = model.CloneObject(value)
+		}
+		selectMainInterface(updates)
+		current, err := e.API.CallObjects(ctx, "hostinterface.get", model.Object{"output": "extend", "selectDetails": "extend", "hostids": host.ID})
+		if err != nil {
+			works = append(works, hostInterfaceWork{Host: host, PreparationFailed: err})
+			total++
+			continue
+		}
+		existing := make([]model.Object, len(current))
+		for i, value := range current {
+			existing[i] = value
+		}
+		plans, deletes := buildInterfacePlans(existing, updates)
+		works = append(works, hostInterfaceWork{Host: host, Existing: existing, Plans: plans, Deletes: deletes})
+		total += len(plans) + len(deletes)
 	}
-	selectMainInterface(updates)
-	current, err := e.API.CallObjects(ctx, "hostinterface.get", model.Object{"output": "extend", "selectDetails": "extend", "hostids": host.ID})
-	if err != nil {
-		return err
+	if total == 0 {
+		return
 	}
-	existing := make([]model.Object, len(current))
-	for i, value := range current {
-		existing[i] = value
-	}
-	plans, deletes := buildInterfacePlans(existing, updates)
-	counts := interfaceCounts{Total: len(plans) + len(deletes)}
-	for _, plan := range plans {
-		switch plan.Function {
-		case "skip":
-			counts.Skip++
-		case "create":
-			if err := e.createInterface(ctx, host.ID, plan.Update, existing); err != nil {
-				e.Log.Debugf("hostinterface.create %s: %v", host.Name, err)
-				counts.Failed++
-			} else {
-				counts.Create++
-			}
-		case "update":
-			if err := e.updateInterface(ctx, plan.Update, plan.Target, existing); err != nil {
-				e.Log.Debugf("hostinterface.update %s: %v", host.Name, err)
-				counts.Failed++
-			} else {
-				counts.Update++
+	progress := newApplyProgress(e.Log, e.Config.Quiet, "Host Interface Update", total, "create", "update", "delete", "skip")
+	for _, work := range works {
+		if work.PreparationFailed != nil {
+			progress.fail(work.Host.Name, fmt.Errorf("hostinterface.get: %w", work.PreparationFailed))
+			continue
+		}
+		for _, plan := range work.Plans {
+			target := interfaceTarget(work.Host.Name, plan.Function, plan.Update)
+			switch plan.Function {
+			case "skip":
+				progress.record("skip")
+			case "create":
+				if err := e.createInterface(ctx, work.Host.ID, plan.Update, work.Existing); err != nil {
+					progress.fail(target, err)
+				} else {
+					progress.record("create")
+				}
+			case "update":
+				if err := e.updateInterface(ctx, plan.Update, plan.Target, work.Existing); err != nil {
+					progress.fail(target, err)
+				} else {
+					progress.record("update")
+				}
 			}
 		}
-		e.interfaceProgress(counts)
-	}
-	for _, target := range deletes {
-		if _, err := e.API.Call(ctx, "hostinterface.delete", []any{target["interfaceid"]}); err != nil {
-			e.Log.Debugf("hostinterface.delete %s: %v", host.Name, err)
-			counts.Failed++
-		} else {
-			counts.Delete++
+		for _, target := range work.Deletes {
+			name := interfaceTarget(work.Host.Name, "delete", target)
+			if _, err := e.API.Call(ctx, "hostinterface.delete", []any{target["interfaceid"]}); err != nil {
+				progress.fail(name, err)
+			} else {
+				progress.record("delete")
+			}
 		}
-		e.interfaceProgress(counts)
 	}
-	e.Log.Infof("Host Interface Update: %s", formatInterfaceCounts(counts))
-	return nil
+	progress.finish()
+}
+
+func interfaceTarget(host, action string, item model.Object) string {
+	address := model.String(item["ip"])
+	if model.Int(item["useip"]) == 0 || address == "" {
+		address = model.String(item["dns"])
+	}
+	return fmt.Sprintf("%s %s type=%s address=%s port=%s", host, action, model.String(item["type"]), address, model.String(item["port"]))
 }
 
 func selectMainInterface(updates []model.Object) {
@@ -240,10 +270,4 @@ func applyInterface(target, data model.Object) {
 			target[key] = value
 		}
 	}
-}
-func (e *Engine) interfaceProgress(counts interfaceCounts) {
-	e.Log.Progress("\r    Host Interface Update: %s", formatInterfaceCounts(counts))
-}
-func formatInterfaceCounts(c interfaceCounts) string {
-	return fmt.Sprintf("%d/%d (create:%d/update:%d/delete:%d/skip:%d/failed:%d)", c.Create+c.Update+c.Delete+c.Skip+c.Failed, c.Total, c.Create, c.Update, c.Delete, c.Skip, c.Failed)
 }

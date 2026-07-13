@@ -493,7 +493,7 @@ func protectedAPIObject(method, name string, item *LocalItem) bool {
 	if method == "usergroup" && name == superGroup {
 		return true
 	}
-	if method == "role" && item.ID == "3" {
+	if method == "role" && (item.ID == "3" || model.Bool(item.Data["readonly"], false)) {
 		return true
 	}
 	if method == "usermacro" && name == versionMacro {

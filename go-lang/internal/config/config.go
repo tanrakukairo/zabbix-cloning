@@ -30,6 +30,7 @@ type Config struct {
 	Quiet             bool
 	DryRun            bool
 	Initialize        bool
+	InitializeFull    bool
 	UseIP             bool
 	HostUpdate        bool
 	ForceHostUpdate   bool
@@ -128,6 +129,7 @@ func Parse(args []string, mode string) (*Config, error) {
 	}
 
 	c := fromRaw(raw)
+	c.InitializeFull = boolValue(values, "initialize_full", false)
 	c.Command = command
 	c.ConfigFile = configFile
 	c.SecretFile = secretFile
@@ -145,9 +147,15 @@ func Parse(args []string, mode string) (*Config, error) {
 	}
 	if c.Role == "master" {
 		c.Initialize = false
+		c.InitializeFull = false
 		c.SkipHost = false
 		c.TargetVersion = ""
 		c.UpdatePassword = false
+	}
+	if c.InitializeFull {
+		c.Initialize = true
+		c.Yes = false
+		c.Quiet = false
 	}
 	if c.Initialize {
 		c.DeleteHost = false
@@ -239,6 +247,11 @@ func (c *Config) Summary() string {
 	lines = append(lines, "  Target Node: "+c.Node, "    Role: "+c.Role, "    Zabbix Endpoint: "+c.Endpoint)
 	if c.DryRun {
 		lines = append(lines, "  Dry Run: ENABLED")
+	}
+	if c.InitializeFull {
+		lines = append(lines, "  Full Initialize: ENABLED")
+	} else if c.Initialize {
+		lines = append(lines, "  Initialize: ENABLED")
 	}
 	auth := "PASSWORD"
 	if c.Token != "" {

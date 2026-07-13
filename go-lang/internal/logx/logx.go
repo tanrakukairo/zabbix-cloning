@@ -82,6 +82,12 @@ func (l *Logger) Errorf(format string, args ...any) {
 		_ = l.error.Output(2, fmt.Sprintf(format, args...))
 	}
 }
+func (l *Logger) Failuref(format string, args ...any) {
+	_ = l.error.Output(2, fmt.Sprintf(format, args...))
+}
+func (l *Logger) Resultf(format string, args ...any) {
+	_ = l.info.Output(2, fmt.Sprintf(format, args...))
+}
 func (l *Logger) Progress(format string, args ...any) {
 	if !l.quiet {
 		fmt.Printf(format, args...)

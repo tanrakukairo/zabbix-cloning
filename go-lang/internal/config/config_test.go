@@ -70,6 +70,39 @@ func TestDryRunOption(t *testing.T) {
 	}
 }
 
+func TestInitializeFullForcesInteractiveFullInitialization(t *testing.T) {
+	cfg, err := Parse([]string{
+		"replica", "--no.config.files", "--initialize.full", "--yes", "--quiet", "--delete.host", "--delete.api", "--skip.template", "--skip.host",
+	}, "zc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Initialize || !cfg.InitializeFull {
+		t.Fatalf("full initialization was not enabled: %#v", cfg)
+	}
+	if cfg.Yes || cfg.Quiet {
+		t.Fatalf("full initialization must force interactive output: %#v", cfg)
+	}
+	if cfg.DeleteHost || cfg.DeleteAPI || cfg.SkipTemplate || cfg.SkipHost {
+		t.Fatalf("full initialization flags were not normalized: %#v", cfg)
+	}
+}
+
+func TestInitializeFullIgnoresConfigurationAndEnvironment(t *testing.T) {
+	configFile := filepath.Join(t.TempDir(), "zc.conf")
+	if err := os.WriteFile(configFile, []byte(`{"initialize_full":true}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("ZC_INITIALIZE_FULL", "true")
+	cfg, err := Parse([]string{"replica", "--config.file", configFile}, "zc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.InitializeFull || cfg.Initialize {
+		t.Fatalf("full initialization was enabled outside the CLI: %#v", cfg)
+	}
+}
+
 func TestCheckNowIntervalAcceptsMultipleValues(t *testing.T) {
 	cfg, err := Parse([]string{
 		"replica", "--no.config.files", "--checknow.interval", "1h", "CHECKNOW_INTERVAL", "{$ALREADY_A_MACRO}",

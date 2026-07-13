@@ -67,11 +67,13 @@ to the selected store. Hosts without `ZC_UUID` receive one automatically.
 ### worker
 
 A monitoring destination. Applies only hosts whose `ZC_WORKER` host tag
-matches `--node`. Templates are skipped by default.
+matches `--node`. Target hosts are enabled for monitoring. Templates are
+skipped by default.
 
 ### replica
 
 A copy of the master. Applies all hosts regardless of `ZC_WORKER`. Additional
+host monitoring status is preserved from the master. Additional
 notification-media settings are skipped.
 
 ## Stores
@@ -198,6 +200,7 @@ Option names use dot separators. Boolean options are enabled when specified.
 | `--dry.run` | Check differences without create, update, or delete operations |
 | `--update.password` | Update target-user passwords |
 | `--initialize` | Initialize a worker or replica before applying |
+| `--initialize.full` | Delete all deletable worker or replica settings before applying |
 | `--useip` | Resolve DNS interfaces and use their IP addresses |
 | `--host.update` | Update existing hosts |
 | `--force.host.update` | Update a host with matching `ZC_UUID` despite a different name; also enables `--host.update` |
@@ -212,17 +215,23 @@ Option names use dot separators. Boolean options are enabled when specified.
 | `--disable.monitoring` | Disable monitoring for applied hosts |
 | `--php.worker.num N` | Parallel host create/update operations; default: 4 |
 
+For template, host, and host-interface application, the on-screen count is
+updated continuously unless `--quiet` is specified. With `--quiet`, no progress
+is displayed and result summaries are logged every 50 items and once for the
+final remainder. Every failure is logged individually. Without `--quiet`, only
+the failed targets are also listed at the end of the operation.
+
 ### Dry Run
 
 `--dry.run` performs normal retrieval and difference calculation but does not
 send create, update, or delete API calls to Zabbix. It also excludes
-`configuration.import`, secret global macros, PSK, CheckNow, initialization,
+`configuration.import`, secret global macros, PSK, CheckNow, real initialization API calls,
 and version-macro updates.
 
 A master does not save a new store version and omits CheckNow waiting. At the
 end, logs list the number of recorded but unexecuted operations by API method.
 
-For a replica, dry run constructs a virtual state from the first GET response.
+For a worker or replica, dry run constructs a virtual state from the first GET response.
 Objects removed by `--initialize` (`correlation`, `drule`, `action`,
 `script`, and `maintenance`) are removed from that state. Later create,
 update, delete, configuration import, host, and global-settings operations are
@@ -233,6 +242,25 @@ not return virtual state to the real instance state.
 Because Zabbix creates CheckNow items after configuration application, dry run
 queries only hosts already present on the real instance. Virtually created
 hosts are excluded and their count is logged.
+
+### Full Initialization
+
+`--initialize.full` can only be enabled on the command line; configuration
+files, secret files, and environment variables cannot enable it. It includes
+`--initialize` and deletes every deletable
+API-managed object from a worker or replica in dependency order, then applies
+the stored configuration. `--yes` and `--quiet` are disabled, and two `y/N`
+confirmations are required before deletion starts. Rejecting either prompt
+aborts without deleting anything.
+
+Admin, the API execution user, Zabbix administrators, read-only roles, and `{$ZC_VERSION}` are retained
+so ZC can continue operating. General settings, authentication settings, and
+auto-registration settings have no delete API; they are overwritten from the
+store during subsequent application. Authentication is switched to internal
+authentication before user directories and MFA settings are deleted.
+
+During dry run, nothing is deleted from the real instance. The same deletion
+is applied to virtual state before subsequent differences are calculated.
 
 ## Store Options
 
@@ -434,8 +462,8 @@ master.
 ## Warning About Delete Options
 
 `--delete.host` and `--delete.api` actually delete objects absent from master
-data. First inspect differences without delete options. `--initialize` takes
-precedence over delete options.
+data. First inspect differences without delete options. `--initialize` or
+`--initialize.full` takes precedence over delete options.
 
 ## Data Compatibility
 

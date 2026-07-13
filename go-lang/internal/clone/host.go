@@ -2,6 +2,7 @@ package clone
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"sort"
 	"strings"
@@ -15,18 +16,24 @@ type hostPlan struct {
 	Data                     model.Object
 	Interfaces               []model.Object
 }
+type hostRetention struct {
+	Names map[string]bool
+	UUIDs map[string]bool
+	IDs   map[string]bool
+}
 
 func (e *Engine) ApplyHosts(ctx context.Context) error {
 	if e.Config.SkipHost {
 		e.Log.Infof("Host Import: SKIP.")
 		return nil
 	}
-	hostUUIDs := map[string]string{}
+	hostByUUID := map[string]*LocalItem{}
 	for _, host := range e.Local["host"] {
 		if uuid := hostUUID(host.Data); uuid != "" {
-			hostUUIDs[uuid] = host.ID
+			hostByUUID[uuid] = host
 		}
 	}
+	retention := hostRetention{Names: map[string]bool{}, UUIDs: map[string]bool{}, IDs: map[string]bool{}}
 	var plans []hostPlan
 	for _, item := range sortedItems(e.Dataset["host"]) {
 		data := model.CloneObject(item.Data)
@@ -34,25 +41,27 @@ func (e *Engine) ApplyHosts(ctx context.Context) error {
 			continue
 		}
 		uuid := hostUUID(data)
-		e.normalizeHost(data)
 		local := e.Local["host"][item.Name]
+		matchingUUID := hostByUUID[uuid]
+		retention.add(item.Name, uuid, local, matchingUUID)
+		e.normalizeHost(data)
 		plan := hostPlan{Name: item.Name, UUID: uuid, Data: data}
 		if local != nil {
 			if !e.Config.HostUpdate {
 				continue
 			}
-			if hostUUIDs[uuid] != "" {
+			if uuid != "" && hostUUID(local.Data) == uuid {
 				plan.Function = "update"
 				plan.ID = local.ID
 			} else {
 				continue
 			}
-		} else if id := hostUUIDs[uuid]; id != "" {
+		} else if matchingUUID != nil {
 			if !e.Config.ForceHostUpdate {
 				continue
 			}
 			plan.Function = "update"
-			plan.ID = id
+			plan.ID = matchingUUID.ID
 			delete(data, "host")
 			delete(data, "name")
 		} else {
@@ -66,18 +75,12 @@ func (e *Engine) ApplyHosts(ctx context.Context) error {
 		plans = append(plans, plan)
 	}
 	failed := e.applyHostPlans(ctx, plans)
-	for _, plan := range plans {
-		if plan.Function == "update" && len(plan.Interfaces) > 0 && !failed[plan.Name] {
-			if err := e.updateHostInterfaces(ctx, plan); err != nil {
-				return err
-			}
-		}
-	}
+	e.applyHostInterfaces(ctx, plans, failed)
 	if err := e.Refresh(ctx); err != nil {
 		return err
 	}
 	if e.Config.DeleteHost {
-		if err := e.deleteMissingHosts(ctx, plans, failed); err != nil {
+		if err := e.deleteMissingHosts(ctx, retention); err != nil {
 			return err
 		}
 	}
@@ -85,9 +88,7 @@ func (e *Engine) ApplyHosts(ctx context.Context) error {
 }
 
 func (e *Engine) hostIsTarget(data model.Object) bool {
-	if e.IsReplica() {
-		data["status"] = 0
-	} else {
+	if !e.IsReplica() {
 		target := false
 		for _, tag := range objects(data["tags"]) {
 			if model.String(tag["tag"]) == "ZC_WORKER" && model.String(tag["value"]) == e.Config.Node {
@@ -108,6 +109,9 @@ func (e *Engine) hostIsTarget(data model.Object) bool {
 func (e *Engine) normalizeHost(data model.Object) {
 	for _, key := range []string{"items", "triggers", "discovery_rules"} {
 		delete(data, key)
+	}
+	if status, ok := data["status"]; ok {
+		data["status"] = normalizeHostStatus(status)
 	}
 	if mode := model.String(data["inventory_mode"]); mode != "" {
 		modes := map[string]int{"DISABLED": -1, "MANUAL": 0, "AUTOMATIC": 1, "AOTOMATIC": 1}
@@ -148,6 +152,17 @@ func (e *Engine) normalizeHost(data model.Object) {
 	}
 	data["groups"] = relationIDs(data["groups"], "groupid", e.IDReplace["hostgroup"])
 	data["templates"] = relationIDs(data["templates"], "templateid", e.IDReplace["template"])
+}
+
+func normalizeHostStatus(value any) int {
+	switch stringsUpper(model.String(value)) {
+	case "ENABLED":
+		return 0
+	case "DISABLED":
+		return 1
+	default:
+		return model.Int(value)
+	}
 }
 
 func (e *Engine) normalizeInterface(hostIf model.Object) {
@@ -197,7 +212,7 @@ func (e *Engine) applyHostPlans(ctx context.Context, plans []hostPlan) map[strin
 	}
 	jobs := make(chan hostPlan)
 	failed := map[string]bool{}
-	counts := map[string]int{"create": 0, "update": 0, "failed": 0}
+	progress := newApplyProgress(e.Log, e.Config.Quiet, "Host Import", len(plans), "create", "update")
 	var mutex sync.Mutex
 	var wait sync.WaitGroup
 	for i := 0; i < workers; i++ {
@@ -209,14 +224,11 @@ func (e *Engine) applyHostPlans(ctx context.Context, plans []hostPlan) map[strin
 				mutex.Lock()
 				if err != nil {
 					failed[plan.Name] = true
-					counts["failed"]++
-					e.Log.Debugf("host.%s %s: %v", plan.Function, plan.Name, err)
+					progress.fail(plan.Name, fmt.Errorf("host.%s: %w", plan.Function, err))
 				} else {
-					counts[plan.Function]++
+					progress.record(plan.Function)
 					e.virtualApplyHostPlan(plan)
 				}
-				done := counts["create"] + counts["update"] + counts["failed"]
-				e.Log.Progress("\r    Host Import: %d/%d (create:%d/update:%d/failed:%d)", done, len(plans), counts["create"], counts["update"], counts["failed"])
 				mutex.Unlock()
 			}
 		}()
@@ -226,21 +238,35 @@ func (e *Engine) applyHostPlans(ctx context.Context, plans []hostPlan) map[strin
 	}
 	close(jobs)
 	wait.Wait()
-	e.Log.Infof("Host Import: %d/%d (create:%d/update:%d/failed:%d)", counts["create"]+counts["update"]+counts["failed"], len(plans), counts["create"], counts["update"], counts["failed"])
+	progress.finish()
 	return failed
 }
 
-func (e *Engine) deleteMissingHosts(ctx context.Context, plans []hostPlan, failed map[string]bool) error {
-	keep := map[string]bool{}
-	for _, plan := range plans {
-		if !failed[plan.Name] {
-			keep[plan.Name] = true
+func (r hostRetention) add(name, uuid string, hosts ...*LocalItem) {
+	r.Names[name] = true
+	if uuid != "" {
+		r.UUIDs[uuid] = true
+	}
+	for _, host := range hosts {
+		if host != nil && host.ID != "" {
+			r.IDs[host.ID] = true
 		}
 	}
+}
+
+func (r hostRetention) keeps(name string, host *LocalItem) bool {
+	if r.Names[name] || r.IDs[host.ID] {
+		return true
+	}
+	uuid := hostUUID(host.Data)
+	return uuid != "" && r.UUIDs[uuid]
+}
+
+func (e *Engine) deleteMissingHosts(ctx context.Context, retention hostRetention) error {
 	var ids []any
 	var names []string
 	for name, item := range e.Local["host"] {
-		if !keep[name] {
+		if !retention.keeps(name, item) {
 			ids = append(ids, item.ID)
 			names = append(names, name)
 		}
