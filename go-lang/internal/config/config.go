@@ -225,7 +225,7 @@ func fromRaw(raw map[string]any) *Config {
 		FileStorePath:   stringValue(raw, "file_store_path", os.Getenv("ZC_FILE_STORE_PATH")),
 		AWSRegion:       region, AWSEndpointURL: objectString(storeConnect, "aws_endpoint_url", ""),
 		LogLevel: strings.ToUpper(stringValue(raw, "log_level", "INFO")),
-		LogFile:  stringValue(raw, "log_file", defaultLogPath()), LogName: stringValue(raw, "log_name", "ZabbixClone"),
+		LogFile:  stringValue(raw, "log_file", defaultLogPath()), LogName: stringValue(raw, "log_name", "ZabbixCloning"),
 	}
 }
 

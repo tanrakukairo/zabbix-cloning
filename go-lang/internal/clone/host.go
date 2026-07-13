@@ -206,10 +206,7 @@ func (e *Engine) normalizeInterface(hostIf model.Object) {
 }
 
 func (e *Engine) applyHostPlans(ctx context.Context, plans []hostPlan) map[string]bool {
-	workers := e.Config.Workers
-	if workers < 1 {
-		workers = 1
-	}
+	workers := e.hostApplyWorkers()
 	jobs := make(chan hostPlan)
 	failed := map[string]bool{}
 	progress := newApplyProgress(e.Log, e.Config.Quiet, "Host Import", len(plans), "create", "update")
@@ -240,6 +237,13 @@ func (e *Engine) applyHostPlans(ctx context.Context, plans []hostPlan) map[strin
 	wait.Wait()
 	progress.finish()
 	return failed
+}
+
+func (e *Engine) hostApplyWorkers() int {
+	if e.Config.Workers < 1 {
+		return 1
+	}
+	return e.Config.Workers
 }
 
 func (r hostRetention) add(name, uuid string, hosts ...*LocalItem) {

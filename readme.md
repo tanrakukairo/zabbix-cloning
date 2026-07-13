@@ -211,7 +211,7 @@ bin/view showdata --no.config.files \
 | `--checknow.execute` | ホスト適用後にLLDと対象アイテムを即時実行 |
 | `--checknow.interval VALUE...` | CheckNow対象の監視間隔。デフォルト`1h` |
 | `--disable.monitoring` | 適用ホストを監視無効状態にする |
-| `--parallel.host.apply N` | ホストcreate/updateの並列数。デフォルト4 |
+| `--parallel.host.apply N` | ホストとホストインターフェイス適用の並列数。デフォルト4。同一ホスト内のインターフェイス処理は順序を維持 |
 
 template、host、host interfaceの適用では、`--quiet`を指定しない場合は画面上の処理件数を
 随時更新します。`--quiet`指定時は画面へ進捗を出さず、50件ごとと最後の端数の処理結果をログへ

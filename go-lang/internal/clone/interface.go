@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 
 	"github.com/tanrakukairo/zabbix-cloning/internal/model"
 )
@@ -21,69 +22,110 @@ type hostInterfaceWork struct {
 }
 
 func (e *Engine) applyHostInterfaces(ctx context.Context, hosts []hostPlan, failedHosts map[string]bool) {
-	var works []hostInterfaceWork
-	total := 0
+	var targets []hostPlan
 	for _, host := range hosts {
 		if host.Function != "update" || len(host.Interfaces) == 0 || failedHosts[host.Name] {
 			continue
 		}
-		updates := make([]model.Object, len(host.Interfaces))
-		for i, value := range host.Interfaces {
-			updates[i] = model.CloneObject(value)
-		}
-		selectMainInterface(updates)
-		current, err := e.API.CallObjects(ctx, "hostinterface.get", model.Object{"output": "extend", "selectDetails": "extend", "hostids": host.ID})
-		if err != nil {
-			works = append(works, hostInterfaceWork{Host: host, PreparationFailed: err})
+		targets = append(targets, host)
+	}
+	if len(targets) == 0 {
+		return
+	}
+	works := make([]hostInterfaceWork, len(targets))
+	e.runHostApplyWorkers(len(targets), func(index int) {
+		works[index] = e.prepareHostInterfaceWork(ctx, targets[index])
+	})
+	total := 0
+	for _, work := range works {
+		if work.PreparationFailed != nil {
 			total++
-			continue
+		} else {
+			total += len(work.Plans) + len(work.Deletes)
 		}
-		existing := make([]model.Object, len(current))
-		for i, value := range current {
-			existing[i] = value
-		}
-		plans, deletes := buildInterfacePlans(existing, updates)
-		works = append(works, hostInterfaceWork{Host: host, Existing: existing, Plans: plans, Deletes: deletes})
-		total += len(plans) + len(deletes)
 	}
 	if total == 0 {
 		return
 	}
 	progress := newApplyProgress(e.Log, e.Config.Quiet, "Host Interface Update", total, "create", "update", "delete", "skip")
-	for _, work := range works {
-		if work.PreparationFailed != nil {
-			progress.fail(work.Host.Name, fmt.Errorf("hostinterface.get: %w", work.PreparationFailed))
-			continue
-		}
-		for _, plan := range work.Plans {
-			target := interfaceTarget(work.Host.Name, plan.Function, plan.Update)
-			switch plan.Function {
-			case "skip":
-				progress.record("skip")
-			case "create":
-				if err := e.createInterface(ctx, work.Host.ID, plan.Update, work.Existing); err != nil {
-					progress.fail(target, err)
-				} else {
-					progress.record("create")
-				}
-			case "update":
-				if err := e.updateInterface(ctx, plan.Update, plan.Target, work.Existing); err != nil {
-					progress.fail(target, err)
-				} else {
-					progress.record("update")
-				}
+	var progressMutex sync.Mutex
+	e.runHostApplyWorkers(len(works), func(index int) {
+		e.applyHostInterfaceWork(ctx, works[index], progress, &progressMutex)
+	})
+	progress.finish()
+}
+
+func (e *Engine) runHostApplyWorkers(count int, process func(int)) {
+	jobs := make(chan int)
+	var wait sync.WaitGroup
+	workers := e.hostApplyWorkers()
+	if workers > count {
+		workers = count
+	}
+	for i := 0; i < workers; i++ {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			for index := range jobs {
+				process(index)
 			}
-		}
-		for _, target := range work.Deletes {
-			name := interfaceTarget(work.Host.Name, "delete", target)
-			if _, err := e.API.Call(ctx, "hostinterface.delete", []any{target["interfaceid"]}); err != nil {
-				progress.fail(name, err)
-			} else {
-				progress.record("delete")
-			}
+		}()
+	}
+	for index := 0; index < count; index++ {
+		jobs <- index
+	}
+	close(jobs)
+	wait.Wait()
+}
+
+func (e *Engine) prepareHostInterfaceWork(ctx context.Context, host hostPlan) hostInterfaceWork {
+	updates := make([]model.Object, len(host.Interfaces))
+	for i, value := range host.Interfaces {
+		updates[i] = model.CloneObject(value)
+	}
+	selectMainInterface(updates)
+	current, err := e.API.CallObjects(ctx, "hostinterface.get", model.Object{"output": "extend", "selectDetails": "extend", "hostids": host.ID})
+	if err != nil {
+		return hostInterfaceWork{Host: host, PreparationFailed: err}
+	}
+	existing := make([]model.Object, len(current))
+	for i, value := range current {
+		existing[i] = value
+	}
+	plans, deletes := buildInterfacePlans(existing, updates)
+	return hostInterfaceWork{Host: host, Existing: existing, Plans: plans, Deletes: deletes}
+}
+
+func (e *Engine) applyHostInterfaceWork(ctx context.Context, work hostInterfaceWork, progress *applyProgress, mutex *sync.Mutex) {
+	record := func(action, target string, err error) {
+		mutex.Lock()
+		defer mutex.Unlock()
+		if err != nil {
+			progress.fail(target, err)
+		} else {
+			progress.record(action)
 		}
 	}
-	progress.finish()
+	if work.PreparationFailed != nil {
+		record("", work.Host.Name, fmt.Errorf("hostinterface.get: %w", work.PreparationFailed))
+		return
+	}
+	for _, plan := range work.Plans {
+		target := interfaceTarget(work.Host.Name, plan.Function, plan.Update)
+		switch plan.Function {
+		case "skip":
+			record("skip", target, nil)
+		case "create":
+			record("create", target, e.createInterface(ctx, work.Host.ID, plan.Update, work.Existing))
+		case "update":
+			record("update", target, e.updateInterface(ctx, plan.Update, plan.Target, work.Existing))
+		}
+	}
+	for _, target := range work.Deletes {
+		name := interfaceTarget(work.Host.Name, "delete", target)
+		_, err := e.API.Call(ctx, "hostinterface.delete", []any{target["interfaceid"]})
+		record("delete", name, err)
+	}
 }
 
 func interfaceTarget(host, action string, item model.Object) string {

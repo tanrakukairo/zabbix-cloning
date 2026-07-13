@@ -113,7 +113,7 @@ Processing options:
   --checknow.execute                Run LLD rules and matching items immediately
   --checknow.interval VALUE...      Set intervals targeted by CheckNow
   --disable.monitoring              Disable monitoring for applied hosts
-  --parallel.host.apply N           Set parallel host create/update operations
+  --parallel.host.apply N           Set parallel host and interface operations
 
 Store options:
   -s, --store.type file|redis|dydb|direct  Select the configuration store

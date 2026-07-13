@@ -214,7 +214,7 @@ Option names use dot separators. Boolean options are enabled when specified.
 | `--checknow.execute` | Immediately run LLD rules and target items after host application |
 | `--checknow.interval VALUE...` | CheckNow monitoring intervals; default: `1h` |
 | `--disable.monitoring` | Disable monitoring for applied hosts |
-| `--parallel.host.apply N` | Parallel host create/update operations; default: 4 |
+| `--parallel.host.apply N` | Parallel host and host-interface operations; default: 4. Interface order is preserved within each host |
 
 For template, host, and host-interface application, the on-screen count is
 updated continuously unless `--quiet` is specified. With `--quiet`, no progress

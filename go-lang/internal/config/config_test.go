@@ -41,6 +41,16 @@ func TestRoleComesFromCommand(t *testing.T) {
 	}
 }
 
+func TestDefaultLogName(t *testing.T) {
+	cfg, err := Parse([]string{"master", "--no.config.files"}, "zc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.LogName != "ZabbixCloning" {
+		t.Fatalf("default log name = %q, want ZabbixCloning", cfg.LogName)
+	}
+}
+
 func TestLegacyCloneAndRoleOptionAreRejected(t *testing.T) {
 	if _, err := Parse([]string{"clone", "--no.config.files"}, "zc"); err == nil {
 		t.Fatal("legacy clone command must be rejected")
