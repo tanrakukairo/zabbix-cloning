@@ -42,8 +42,9 @@ type Engine struct {
 	IDReplace  map[string]map[string]any
 	NewVersion model.Version
 
-	dryRunVirtual  bool
-	dryRunSequence int
+	dryRunVirtual    bool
+	dryRunSequence   int
+	deferredSettings model.Object
 }
 
 func New(ctx context.Context, cfg *config.Config, logger *logx.Logger) (*Engine, error) {

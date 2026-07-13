@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/tanrakukairo/zabbix-cloning/internal/model"
@@ -64,6 +65,28 @@ func (e *Engine) ApplyGlobalSettings(ctx context.Context) error {
 		e.virtualSetGlobal(method, data)
 		e.Log.Infof("Global Settings[%s]: Success", method)
 	}
+	return e.Refresh(ctx)
+}
+
+func (e *Engine) ApplyDeferredSettings(ctx context.Context) error {
+	if len(e.deferredSettings) == 0 {
+		return nil
+	}
+	data := model.CloneObject(e.deferredSettings)
+	unresolved := e.resolveTargetSettingsIDs(data)
+	if len(unresolved) > 0 {
+		parts := make([]string, 0, len(unresolved))
+		for _, key := range sortedKeys(unresolved) {
+			parts = append(parts, fmt.Sprintf("%s=%q", key, model.String(unresolved[key])))
+		}
+		return fmt.Errorf("settings references do not exist on target: %s", strings.Join(parts, ", "))
+	}
+	if _, err := e.API.Call(ctx, "settings.update", data); err != nil {
+		return fmt.Errorf("settings.update deferred references: %w", err)
+	}
+	e.deferredSettings = nil
+	e.virtualSetGlobal("settings", data)
+	e.Log.Infof("Global Settings[settings references]: Success")
 	return e.Refresh(ctx)
 }
 

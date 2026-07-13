@@ -86,11 +86,20 @@ func (e *Engine) virtualSetGlobal(method string, data model.Object) {
 	if !e.dryRunVirtual {
 		return
 	}
+	merged := model.Object{}
+	for _, item := range e.Local[method] {
+		for key, value := range item.Data {
+			merged[key] = value
+		}
+	}
+	for key, value := range data {
+		merged[key] = value
+	}
 	e.Local[method] = map[string]*LocalItem{}
 	index := 0
-	for _, key := range sortedKeys(data) {
+	for _, key := range sortedKeys(merged) {
 		e.Local[method][key] = &LocalItem{
-			ID: fmt.Sprint(index), Name: key, Data: model.Object{key: data[key]},
+			ID: fmt.Sprint(index), Name: key, Data: model.Object{key: merged[key]},
 		}
 		index++
 	}

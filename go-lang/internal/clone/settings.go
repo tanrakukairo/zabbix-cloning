@@ -28,10 +28,12 @@ var settingsTimeoutTargets = makeStringSet(`
 	zabbix_agent simple_check snmp_agent external_check db_monitor http_agent ssh_agent telnet_agent script browser
 `)
 
-var settingsColor = regexp.MustCompile(`^[0-9A-Fa-f]{6}$`)
+var (
+	settingsColor     = regexp.MustCompile(`^[0-9A-Fa-f]{6}$`)
+	settingsNumericID = regexp.MustCompile(`^[0-9]+$`)
+)
 
 func (e *Engine) prepareSettingsUpdate(data model.Object) (model.Object, error) {
-	e.replaceSettingsIDs(data, false)
 	overrides, err := normalizeSettingsConfig(e.Config.Raw["settings"], e.Version)
 	if err != nil {
 		return nil, err
@@ -40,14 +42,42 @@ func (e *Engine) prepareSettingsUpdate(data model.Object) (model.Object, error) 
 		data[key] = value
 	}
 	delete(data, "ha_failover_delay")
+	e.deferredSettings = e.resolveTargetSettingsIDs(data)
 	return data, nil
 }
 
-func (e *Engine) replaceSettingsIDs(data model.Object, toNames bool) {
-	for key, method := range map[string]string{
+func (e *Engine) resolveTargetSettingsIDs(data model.Object) model.Object {
+	deferred := model.Object{}
+	for key, method := range settingsIDMethods() {
+		value := model.String(data[key])
+		if value == "" || value == "0" {
+			continue
+		}
+		lookup := e.IDReplace[method]
+		replacement, exists := lookup[value]
+		if !exists {
+			deferred[key] = data[key]
+			delete(data, key)
+			continue
+		}
+		// A numeric value already present in the target lookup is a target ID.
+		// Non-numeric values are stored group names and must be converted to IDs.
+		if !settingsNumericID.MatchString(value) {
+			data[key] = replacement
+		}
+	}
+	return deferred
+}
+
+func settingsIDMethods() map[string]string {
+	return map[string]string{
 		"discovery_groupid": "hostgroup",
 		"alert_usrgrpid":    "usergroup",
-	} {
+	}
+}
+
+func (e *Engine) replaceSettingsIDs(data model.Object, toNames bool) {
+	for key, method := range settingsIDMethods() {
 		value := model.String(data[key])
 		if value == "" || value == "0" {
 			continue

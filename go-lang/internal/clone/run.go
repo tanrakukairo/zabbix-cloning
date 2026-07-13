@@ -92,6 +92,9 @@ func Run(ctx context.Context, cfg *config.Config, logger *logx.Logger) error {
 				return fmt.Errorf("setApiToZabbix %s: %w", section, err)
 			}
 		}
+		if err = engine.ApplyDeferredSettings(ctx); err != nil {
+			return fmt.Errorf("setGlobalsettingsToZabbix deferred: %w", err)
+		}
 		if err = engine.ApplyAuthentication(ctx); err != nil {
 			return fmt.Errorf("setAuthenticationToZabbix: %w", err)
 		}

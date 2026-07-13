@@ -3,6 +3,7 @@ package clone
 import (
 	"testing"
 
+	"github.com/tanrakukairo/zabbix-cloning/internal/config"
 	"github.com/tanrakukairo/zabbix-cloning/internal/model"
 	"github.com/tanrakukairo/zabbix-cloning/internal/zabbix"
 )
@@ -75,5 +76,42 @@ func TestReplaceSettingsIDs(t *testing.T) {
 	engine.replaceSettingsIDs(data, false)
 	if data["discovery_groupid"] != "112" || data["alert_usrgrpid"] != "107" {
 		t.Fatalf("settings names were not converted to target IDs: %#v", data)
+	}
+}
+
+func TestPrepareSettingsUpdateDefersMissingGroupReferences(t *testing.T) {
+	engine := &Engine{
+		Config: &config.Config{Raw: map[string]any{}},
+		Version: zabbix.ParseVersion("7.0.21"),
+		IDReplace: map[string]map[string]any{
+			"hostgroup": {"2": "Zabbix servers", "Zabbix servers": "2"},
+			"usergroup": {"7": "Zabbix administrators", "Zabbix administrators": "7"},
+		},
+	}
+	data, err := engine.prepareSettingsUpdate(model.Object{
+		"default_lang":      "en_US",
+		"discovery_groupid": "Discovered hosts",
+		"alert_usrgrpid":    "Zabbix administrators",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, exists := data["discovery_groupid"]; exists {
+		t.Fatalf("missing discovery group was not deferred: %#v", data)
+	}
+	if data["alert_usrgrpid"] != "7" {
+		t.Fatalf("existing user group was not resolved: %#v", data)
+	}
+	if engine.deferredSettings["discovery_groupid"] != "Discovered hosts" {
+		t.Fatalf("unexpected deferred settings: %#v", engine.deferredSettings)
+	}
+
+	engine.IDReplace["hostgroup"]["Discovered hosts"] = "23"
+	deferred := model.CloneObject(engine.deferredSettings)
+	if unresolved := engine.resolveTargetSettingsIDs(deferred); len(unresolved) != 0 {
+		t.Fatalf("created discovery group was not resolved: %#v", unresolved)
+	}
+	if deferred["discovery_groupid"] != "23" {
+		t.Fatalf("unexpected resolved discovery group ID: %#v", deferred)
 	}
 }
