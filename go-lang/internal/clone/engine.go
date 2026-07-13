@@ -20,6 +20,7 @@ const (
 	uniqueTag    = "ZC_UUID"
 	versionMacro = "{$ZC_VERSION}"
 	superUser    = "Admin"
+	guestUser    = "guest"
 	superGroup   = "Zabbix administrators"
 )
 

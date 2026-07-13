@@ -70,6 +70,29 @@ func TestDryRunOption(t *testing.T) {
 	}
 }
 
+func TestOnlineOption(t *testing.T) {
+	cfg, err := Parse([]string{"replica", "--no.config.files", "--online"}, "zc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Online {
+		t.Fatal("online option was not enabled")
+	}
+}
+
+func TestParallelHostApplyOption(t *testing.T) {
+	cfg, err := Parse([]string{"replica", "--no.config.files", "--parallel.host.apply", "8"}, "zc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Workers != 8 {
+		t.Fatalf("parallel host apply = %d, want 8", cfg.Workers)
+	}
+	if _, err := Parse([]string{"replica", "--no.config.files", "--php.worker.num", "8"}, "zc"); err == nil {
+		t.Fatal("legacy --php.worker.num option must be rejected")
+	}
+}
+
 func TestInitializeFullForcesInteractiveFullInitialization(t *testing.T) {
 	cfg, err := Parse([]string{
 		"replica", "--no.config.files", "--initialize.full", "--yes", "--quiet", "--delete.host", "--delete.api", "--skip.template", "--skip.host",

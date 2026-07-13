@@ -201,6 +201,7 @@ Option names use dot separators. Boolean options are enabled when specified.
 | `--update.password` | Update target-user passwords |
 | `--initialize` | Initialize a worker or replica before applying |
 | `--initialize.full` | Delete all deletable worker or replica settings before applying |
+| `--online` | Keep the target online without creating the temporary `__ZC_UPDATE__` maintenance |
 | `--useip` | Resolve DNS interfaces and use their IP addresses |
 | `--host.update` | Update existing hosts |
 | `--force.host.update` | Update a host with matching `ZC_UUID` despite a different name; also enables `--host.update` |
@@ -213,7 +214,7 @@ Option names use dot separators. Boolean options are enabled when specified.
 | `--checknow.execute` | Immediately run LLD rules and target items after host application |
 | `--checknow.interval VALUE...` | CheckNow monitoring intervals; default: `1h` |
 | `--disable.monitoring` | Disable monitoring for applied hosts |
-| `--php.worker.num N` | Parallel host create/update operations; default: 4 |
+| `--parallel.host.apply N` | Parallel host create/update operations; default: 4 |
 
 For template, host, and host-interface application, the on-screen count is
 updated continuously unless `--quiet` is specified. With `--quiet`, no progress

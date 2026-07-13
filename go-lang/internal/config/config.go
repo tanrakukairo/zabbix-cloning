@@ -14,7 +14,7 @@ import (
 	"github.com/tanrakukairo/zabbix-cloning/internal/model"
 )
 
-const Version = "0.3.0"
+const Version = "0.3.2"
 
 type Config struct {
 	Command  string
@@ -31,6 +31,7 @@ type Config struct {
 	DryRun            bool
 	Initialize        bool
 	InitializeFull    bool
+	Online            bool
 	UseIP             bool
 	HostUpdate        bool
 	ForceHostUpdate   bool
@@ -205,7 +206,7 @@ func fromRaw(raw map[string]any) *Config {
 		User:     stringValue(raw, "user", "Admin"), Password: stringValue(raw, "password", ""),
 		Token: stringValue(raw, "token", ""), SelfCert: boolValue(raw, "self_cert", false),
 		Yes: boolValue(raw, "yes", false), Quiet: boolValue(raw, "quiet", false), DryRun: boolValue(raw, "dry_run", false),
-		Initialize: boolValue(raw, "initialize", false), UseIP: boolValue(raw, "useip", false),
+		Initialize: boolValue(raw, "initialize", false), Online: boolValue(raw, "online", false), UseIP: boolValue(raw, "useip", false),
 		HostUpdate: boolValue(raw, "host_update", false), ForceHostUpdate: boolValue(raw, "force_host_update", false),
 		NoUUID: boolValue(raw, "no_uuid", false), DeleteHost: boolValue(raw, "delete_host", false),
 		DeleteAPI: boolValue(raw, "delete_api", false), SkipTemplate: boolValue(raw, "skip_template", skipTemplateDefault),
@@ -213,7 +214,7 @@ func fromRaw(raw map[string]any) *Config {
 		DisableMonitoring: boolValue(raw, "disable_monitoring", false), UpdatePassword: boolValue(raw, "update_password", false),
 		TargetVersion: stringValue(raw, "version", ""), TemplateSeparate: intValue(raw, "template_separate_num", intValue(raw, "template_separate", 100)),
 		CheckNowInterval: stringList(raw["checknow_interval"], []string{"1h"}), CheckNowWait: intValue(raw, "checknow_wait", 30),
-		Workers:     intValue(raw, "php_worker_num", intValue(raw, "php_work_num", 4)),
+		Workers:     intValue(raw, "parallel_host_apply", 4),
 		Description: stringValue(raw, "description", ""), CloningSuperAdmin: boolValue(raw, "cloning_super_admin", false),
 		StoreType: storeType, StoreEndpoint: endpoint,
 		StorePort:       intValue(raw, "store_port", objectInt(storeConnect, "redis_port", 6379)),

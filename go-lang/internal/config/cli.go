@@ -12,9 +12,10 @@ var aliases = map[string]string{
 	"-e": "endpoint", "--endpoint": "endpoint", "-u": "user", "--user": "user", "-p": "password", "--password": "password",
 	"-t": "token", "--token": "token", "--self.cert": "self_cert", "--update.password": "update_password",
 	"--dry.run": "dry_run", "--initialize": "initialize", "--initialize.full": "initialize_full", "--useip": "useip", "--host.update": "host_update", "--force.host.update": "force_host_update",
+	"--online":  "online",
 	"--no.uuid": "no_uuid", "--delete.host": "delete_host", "--delete.api": "delete_api", "--skip.template": "skip_template",
 	"--skip.host": "skip_host", "--template.separate.num": "template_separate_num", "--checknow.execute": "checknow_execute",
-	"--checknow.interval": "checknow_interval", "--disable.monitoring": "disable_monitoring", "--php.worker.num": "php_worker_num",
+	"--checknow.interval": "checknow_interval", "--disable.monitoring": "disable_monitoring", "--parallel.host.apply": "parallel_host_apply",
 	"-s": "store_type", "--store.type": "store_type", "-se": "store_endpoint", "--store.endpoint": "store_endpoint",
 	"-sp": "store_port", "--store.port": "store_port", "-sa": "store_access", "--store.access": "store_access",
 	"-sc": "store_credential", "--store.credential": "store_credential", "-sl": "store_limit", "--store.limit": "store_limit",
@@ -25,6 +26,7 @@ var aliases = map[string]string{
 var boolFlags = map[string]bool{
 	"quiet": true, "yes": true, "no_config_files": true, "self_cert": true, "update_password": true, "dry_run": true,
 	"initialize": true, "initialize_full": true, "useip": true, "host_update": true, "force_host_update": true, "no_uuid": true,
+	"online":      true,
 	"delete_host": true, "delete_api": true, "skip_template": true, "skip_host": true, "checknow_execute": true,
 	"disable_monitoring": true, "id_only": true,
 }
@@ -98,6 +100,7 @@ Processing options:
   --update.password                 Update cloned user passwords
   --initialize                      Reset the target before applying settings
   --initialize.full                 Delete all deletable target settings before applying
+  --online                          Keep the target online without update maintenance
   --useip                           Resolve interface DNS names to IP addresses
   --host.update                     Update existing hosts
   --force.host.update               Update matching ZC_UUID hosts with renamed hosts
@@ -110,7 +113,7 @@ Processing options:
   --checknow.execute                Run LLD rules and matching items immediately
   --checknow.interval VALUE...      Set intervals targeted by CheckNow
   --disable.monitoring              Disable monitoring for applied hosts
-  --php.worker.num N                Set parallel host create/update workers
+  --parallel.host.apply N           Set parallel host create/update operations
 
 Store options:
   -s, --store.type file|redis|dydb|direct  Select the configuration store

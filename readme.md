@@ -198,6 +198,7 @@ bin/view showdata --no.config.files \
 | `--update.password` | 対象ユーザーのパスワードを更新 |
 | `--initialize` | worker/replicaを初期化して適用 |
 | `--initialize.full` | worker/replicaの削除可能な設定を全削除してから適用 |
+| `--online` | 更新中の一時メンテナンス `__ZC_UPDATE__` を作成せず、対象をオンラインのまま適用 |
 | `--useip` | DNS指定インターフェイスを名前解決してIP利用へ変更 |
 | `--host.update` | 既存ホストを更新 |
 | `--force.host.update` | ホスト名が異なっても同じ`ZC_UUID`のホストを更新。`--host.update`も有効化 |
@@ -210,7 +211,7 @@ bin/view showdata --no.config.files \
 | `--checknow.execute` | ホスト適用後にLLDと対象アイテムを即時実行 |
 | `--checknow.interval VALUE...` | CheckNow対象の監視間隔。デフォルト`1h` |
 | `--disable.monitoring` | 適用ホストを監視無効状態にする |
-| `--php.worker.num N` | ホストcreate/updateの並列数。デフォルト4 |
+| `--parallel.host.apply N` | ホストcreate/updateの並列数。デフォルト4 |
 
 template、host、host interfaceの適用では、`--quiet`を指定しない場合は画面上の処理件数を
 随時更新します。`--quiet`指定時は画面へ進捗を出さず、50件ごとと最後の端数の処理結果をログへ

@@ -36,6 +36,7 @@ func TestInitializeFullDeletesAllUnprotectedIDObjects(t *testing.T) {
 		}
 	}
 	local["user"][superUser] = &LocalItem{ID: "1", Name: superUser, Data: model.Object{"username": superUser}}
+	local["user"][guestUser] = &LocalItem{ID: "3", Name: guestUser, Data: model.Object{"username": guestUser}}
 	local["user"]["API operator"] = &LocalItem{ID: "2", Name: "API operator", Data: model.Object{"username": "API operator"}}
 	local["usergroup"][superGroup] = &LocalItem{ID: "7", Name: superGroup, Data: model.Object{"name": superGroup}}
 	local["role"]["Super admin role"] = &LocalItem{ID: "3", Name: "Super admin role", Data: model.Object{"readonly": "1"}}
@@ -64,6 +65,9 @@ func TestInitializeFullDeletesAllUnprotectedIDObjects(t *testing.T) {
 	}
 	if engine.Local["user"]["API operator"] == nil {
 		t.Fatal("API execution user was deleted")
+	}
+	if engine.Local["user"][guestUser] == nil {
+		t.Fatal("special guest user was deleted")
 	}
 	counts := api.DryRunMethods()
 	if counts["authentication.update"] != 1 {

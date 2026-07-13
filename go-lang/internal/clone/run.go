@@ -75,7 +75,9 @@ func Run(ctx context.Context, cfg *config.Config, logger *logx.Logger) error {
 		if err = engine.ApplyConfiguration(ctx); err != nil {
 			return fmt.Errorf("setConfigurationToZabbix: %w", err)
 		}
-		if err = engine.SetAlertStop(ctx); err != nil {
+		if engine.Config.Online {
+			logger.Infof("Set AlertStop in Update: SKIP (--online).")
+		} else if err = engine.SetAlertStop(ctx); err != nil {
 			return fmt.Errorf("setAlertStopInUpdate: %w", err)
 		}
 		if err = engine.ApplyAPISection(ctx, "MID"); err != nil {
