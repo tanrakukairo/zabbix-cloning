@@ -49,3 +49,17 @@ func TestUserGetIncludesUserGroupAccess(t *testing.T) {
 		t.Fatalf("user.get selectUsrgrps does not include usrgrpid: %#v", fields)
 	}
 }
+
+func TestHostGetIncludesFlags(t *testing.T) {
+	parameters, err := NewParameters(zabbix.ParseVersion("7.0.21"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, field := range toAnyList(parameters.Methods["host"].Options["output"]) {
+		found = found || model.String(field) == "flags"
+	}
+	if !found {
+		t.Fatalf("host.get output does not include flags: %#v", parameters.Methods["host"].Options["output"])
+	}
+}

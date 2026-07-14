@@ -13,12 +13,18 @@ func (e *Engine) CreateMasterData(ctx context.Context) error {
 	if !e.IsMaster() {
 		return fmt.Errorf("not master node")
 	}
+	if excluded := e.excludeLLDDiscoveredHostsFromMaster(); excluded > 0 {
+		e.Log.Infof("Master Data: Excluded %d LLD-discovered hosts", excluded)
+	}
 	if err := e.exportConfiguration(ctx); err != nil {
 		return err
 	}
 	dataset := model.Dataset{}
 	for method, items := range e.Local {
 		for _, item := range items {
+			if method == "host" && isLLDDiscoveredHost(item) {
+				continue
+			}
 			if method == "user" && item.Name == superUser || method == "usergroup" && protectedUserGroupID(item.ID) || method == "role" && item.ID == "3" || method == "usermacro" && item.Name == versionMacro {
 				continue
 			}
@@ -39,6 +45,21 @@ func (e *Engine) CreateMasterData(ctx context.Context) error {
 		e.NewVersion.Description += " : " + e.Config.Description
 	}
 	return nil
+}
+
+func (e *Engine) excludeLLDDiscoveredHostsFromMaster() int {
+	excluded := 0
+	for name, item := range e.Local["host"] {
+		if !isLLDDiscoveredHost(item) {
+			continue
+		}
+		delete(e.Local["host"], name)
+		excluded++
+	}
+	if excluded > 0 {
+		e.rebuildIDReplace()
+	}
+	return excluded
 }
 
 func (e *Engine) prepareMasterItem(method string, data model.Object) bool {

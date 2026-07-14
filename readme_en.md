@@ -63,6 +63,7 @@ configuration files.
 
 The source of configuration. Retrieves data from Zabbix and saves a new version
 to the selected store. Hosts without `ZC_UUID` receive one automatically.
+LLD-discovered hosts (`flags=4`) are excluded from UUID assignment and master data.
 
 ### worker
 
@@ -206,7 +207,7 @@ Option names use dot separators. Boolean options are enabled when specified.
 | `--host.update` | Update existing hosts |
 | `--force.host.update` | Update a host with matching `ZC_UUID` despite a different name; also enables `--host.update` |
 | `--no.uuid` | Reserved compatibility option; Go always uses `ZC_UUID` |
-| `--delete.host` | Delete hosts not present in the store |
+| `--delete.host` | Delete hosts not present in the store, excluding LLD-discovered hosts (`flags=4`) |
 | `--delete.api` | Delete API-managed configuration not present in the store |
 | `--skip.template` | Skip template export and import |
 | `--skip.host` | Skip host application |

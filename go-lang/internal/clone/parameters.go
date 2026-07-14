@@ -80,6 +80,8 @@ func NewParameters(version zabbix.Version) (*Parameters, error) {
 		required := []string{spec.ID}
 		if method == "template" {
 			required = append(required, "uuid")
+		} else if method == "host" {
+			required = append(required, "flags")
 		}
 		for _, requiredField := range required {
 			found := false

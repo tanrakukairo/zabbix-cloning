@@ -270,6 +270,9 @@ func (e *Engine) deleteMissingHosts(ctx context.Context, retention hostRetention
 	var ids []any
 	var names []string
 	for name, item := range e.Local["host"] {
+		if isLLDDiscoveredHost(item) {
+			continue
+		}
 		if !retention.keeps(name, item) {
 			ids = append(ids, item.ID)
 			names = append(names, name)
@@ -289,6 +292,10 @@ func (e *Engine) deleteMissingHosts(ctx context.Context, retention hostRetention
 	sort.Strings(names)
 	e.Log.Infof("Host Delete: Success. %v", names)
 	return e.Refresh(ctx)
+}
+
+func isLLDDiscoveredHost(item *LocalItem) bool {
+	return item != nil && model.Int(item.Data["flags"]) == 4
 }
 
 func hostUUID(data model.Object) string {

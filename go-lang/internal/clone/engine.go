@@ -179,8 +179,16 @@ func (e *Engine) rebuildIDReplace() {
 
 func (e *Engine) ensureHostUUIDs(ctx context.Context) error {
 	hosts := e.Local["host"]
-	total, set, exists := len(hosts), 0, 0
+	total, set, exists := 0, 0, 0
 	for _, host := range hosts {
+		if !isLLDDiscoveredHost(host) {
+			total++
+		}
+	}
+	for _, host := range hosts {
+		if isLLDDiscoveredHost(host) {
+			continue
+		}
 		tags := objects(host.Data["tags"])
 		found := false
 		for _, tag := range tags {

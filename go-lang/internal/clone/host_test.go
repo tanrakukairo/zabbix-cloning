@@ -76,8 +76,9 @@ func TestDeleteHostKeepsDesiredExistingHostWithoutHostUpdate(t *testing.T) {
 		Config: &config.Config{Role: "replica", DeleteHost: true, Quiet: true, Workers: 1},
 		Local: map[string]map[string]*LocalItem{
 			"host": {
-				"master-host": {ID: "1", Name: "master-host", Data: hostData("master-host", "uuid-master")},
-				"stale-host":  {ID: "2", Name: "stale-host", Data: hostData("stale-host", "uuid-stale")},
+				"master-host":    {ID: "1", Name: "master-host", Data: hostData("master-host", "uuid-master")},
+				"stale-host":     {ID: "2", Name: "stale-host", Data: hostData("stale-host", "uuid-stale")},
+				"discovered-lld": {ID: "3", Name: "discovered-lld", Data: model.Object{"host": "discovered-lld", "flags": 4}},
 			},
 		},
 		Dataset: model.Dataset{
@@ -94,6 +95,9 @@ func TestDeleteHostKeepsDesiredExistingHostWithoutHostUpdate(t *testing.T) {
 	if engine.Local["host"]["stale-host"] != nil {
 		t.Fatal("host absent from master data was retained")
 	}
+	if engine.Local["host"]["discovered-lld"] == nil {
+		t.Fatal("LLD-discovered host with flags=4 was deleted")
+	}
 	if got := api.DryRunMethods()["host.delete"]; got != 1 {
 		t.Fatalf("host.delete calls = %d, want 1", got)
 	}
@@ -105,6 +109,52 @@ func TestHostRetentionKeepsRenamedHostByUUID(t *testing.T) {
 	retention.add("new-name", "same-uuid", local)
 	if !retention.keeps("old-name", local) {
 		t.Fatal("renamed host with matching UUID was not retained")
+	}
+}
+
+func TestExcludeLLDDiscoveredHostsFromMaster(t *testing.T) {
+	engine := &Engine{
+		Local: map[string]map[string]*LocalItem{
+			"host": {
+				"regular":        {ID: "1", Name: "regular", Data: model.Object{"flags": 0}},
+				"discovered-lld": {ID: "2", Name: "discovered-lld", Data: model.Object{"flags": 4}},
+			},
+		},
+	}
+	if excluded := engine.excludeLLDDiscoveredHostsFromMaster(); excluded != 1 {
+		t.Fatalf("excluded hosts = %d, want 1", excluded)
+	}
+	if engine.Local["host"]["regular"] == nil {
+		t.Fatal("regular host was excluded from master data")
+	}
+	if engine.Local["host"]["discovered-lld"] != nil {
+		t.Fatal("LLD-discovered host remained in master data source")
+	}
+}
+
+func TestEnsureHostUUIDsSkipsLLDDiscoveredHosts(t *testing.T) {
+	api, err := zabbix.New("http://127.0.0.1:1", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	api.SetDryRun(true)
+	logger, err := logx.New("test", "INFO", "", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer logger.Close()
+	engine := &Engine{
+		API: api, Log: logger,
+		Local: map[string]map[string]*LocalItem{"host": {
+			"regular":        {ID: "1", Name: "regular", Data: hostData("regular", "existing-uuid")},
+			"discovered-lld": {ID: "2", Name: "discovered-lld", Data: model.Object{"flags": 4}},
+		}},
+	}
+	if err := engine.ensureHostUUIDs(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := api.DryRunMethods()["host.update"]; got != 0 {
+		t.Fatalf("host.update calls = %d, want 0", got)
 	}
 }
 
