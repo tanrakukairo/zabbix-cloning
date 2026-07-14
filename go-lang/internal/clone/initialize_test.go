@@ -36,9 +36,18 @@ func TestInitializeFullDeletesAllUnprotectedIDObjects(t *testing.T) {
 		}
 	}
 	local["user"][superUser] = &LocalItem{ID: "1", Name: superUser, Data: model.Object{"username": superUser}}
-	local["user"][guestUser] = &LocalItem{ID: "3", Name: guestUser, Data: model.Object{"username": guestUser}}
+	local["user"]["guest"] = &LocalItem{ID: "3", Name: "guest", Data: model.Object{
+		"username": "guest", "usrgrps": []any{model.Object{"usrgrpid": "12", "name": "Guests"}},
+	}}
+	local["user"]["Administrator group member"] = &LocalItem{ID: "4", Name: "Administrator group member", Data: model.Object{
+		"username": "Administrator group member", "usrgrps": []any{model.Object{"usrgrpid": adminGroupID, "name": "Zabbix administrators"}},
+	}}
+	local["user"]["Internal group member"] = &LocalItem{ID: "5", Name: "Internal group member", Data: model.Object{
+		"username": "Internal group member", "usrgrps": []any{model.Object{"usrgrpid": internalGroupID, "name": "Internal"}},
+	}}
 	local["user"]["API operator"] = &LocalItem{ID: "2", Name: "API operator", Data: model.Object{"username": "API operator"}}
-	local["usergroup"][superGroup] = &LocalItem{ID: "7", Name: superGroup, Data: model.Object{"name": superGroup}}
+	local["usergroup"]["Zabbix administrators"] = &LocalItem{ID: adminGroupID, Name: "Zabbix administrators", Data: model.Object{"name": "Zabbix administrators"}}
+	local["usergroup"]["Internal"] = &LocalItem{ID: internalGroupID, Name: "Internal", Data: model.Object{"name": "Internal"}}
 	local["role"]["Super admin role"] = &LocalItem{ID: "3", Name: "Super admin role", Data: model.Object{"readonly": "1"}}
 	local["usermacro"][versionMacro] = &LocalItem{ID: "9", Name: versionMacro, Data: model.Object{"macro": versionMacro}}
 
@@ -57,7 +66,7 @@ func TestInitializeFullDeletesAllUnprotectedIDObjects(t *testing.T) {
 		}
 	}
 	for method, name := range map[string]string{
-		"user": superUser, "usergroup": superGroup, "role": "Super admin role", "usermacro": versionMacro,
+		"user": superUser, "role": "Super admin role", "usermacro": versionMacro,
 	} {
 		if engine.Local[method][name] == nil {
 			t.Fatalf("protected %s %s was deleted", method, name)
@@ -66,8 +75,18 @@ func TestInitializeFullDeletesAllUnprotectedIDObjects(t *testing.T) {
 	if engine.Local["user"]["API operator"] == nil {
 		t.Fatal("API execution user was deleted")
 	}
-	if engine.Local["user"][guestUser] == nil {
-		t.Fatal("special guest user was deleted")
+	if engine.Local["user"]["guest"] != nil {
+		t.Fatal("guest user was protected by username")
+	}
+	for _, name := range []string{"Administrator group member", "Internal group member"} {
+		if engine.Local["user"][name] == nil {
+			t.Fatalf("user in protected group was deleted: %s", name)
+		}
+	}
+	for _, name := range []string{"Zabbix administrators", "Internal"} {
+		if engine.Local["usergroup"][name] == nil {
+			t.Fatalf("protected user group was deleted: %s", name)
+		}
 	}
 	counts := api.DryRunMethods()
 	if counts["authentication.update"] != 1 {
@@ -85,5 +104,13 @@ func TestConfirmExecutionCanBeCalledTwice(t *testing.T) {
 	}
 	if confirmExecution(reader, "") {
 		t.Fatal("second confirmation was accepted")
+	}
+}
+
+func TestFullInitializeUserGetIncludesGroupAccess(t *testing.T) {
+	options := fullInitializeGetOptions("user", MethodSpec{ID: "userid", Name: "username"})
+	fields := toAnyList(options["selectUsrgrps"])
+	if len(fields) != 2 || model.String(fields[0]) != "usrgrpid" || model.String(fields[1]) != "name" {
+		t.Fatalf("full initialize user groups do not include usrgrpid: %#v", options)
 	}
 }

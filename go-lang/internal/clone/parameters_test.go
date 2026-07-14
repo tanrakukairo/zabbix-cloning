@@ -34,3 +34,18 @@ func TestMethodOutputIncludesObjectID(t *testing.T) {
 		t.Fatalf("template.get output does not include uuid: %#v", templateOutput)
 	}
 }
+
+func TestUserGetIncludesUserGroupAccess(t *testing.T) {
+	parameters, err := NewParameters(zabbix.ParseVersion("7.0.21"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	fields := toAnyList(parameters.Methods["user"].Options["selectUsrgrps"])
+	found := false
+	for _, field := range fields {
+		found = found || model.String(field) == "usrgrpid"
+	}
+	if !found {
+		t.Fatalf("user.get selectUsrgrps does not include usrgrpid: %#v", fields)
+	}
+}

@@ -119,14 +119,7 @@ func (e *Engine) deleteAllForInitialize(ctx context.Context, method string, full
 
 func (e *Engine) getAllForFullInitialize(ctx context.Context, method string) (map[string]*LocalItem, error) {
 	spec := e.Params.Methods[method]
-	output := []any{spec.ID, spec.Name}
-	if method == "role" {
-		output = append(output, "readonly")
-	}
-	options := model.Object{"output": output}
-	if method == "usermacro" {
-		options["globalmacro"] = true
-	}
+	options := fullInitializeGetOptions(method, spec)
 	objects, err := e.API.CallObjects(ctx, method+".get", options)
 	if err != nil {
 		return nil, fmt.Errorf("full initialize %s.get: %w", method, err)
@@ -141,4 +134,18 @@ func (e *Engine) getAllForFullInitialize(ctx context.Context, method string) (ma
 		items[name] = &LocalItem{ID: id, Name: name, Data: model.Object(object)}
 	}
 	return items, nil
+}
+
+func fullInitializeGetOptions(method string, spec MethodSpec) model.Object {
+	output := []any{spec.ID, spec.Name}
+	if method == "role" {
+		output = append(output, "readonly")
+	}
+	options := model.Object{"output": output}
+	if method == "usermacro" {
+		options["globalmacro"] = true
+	} else if method == "user" {
+		options["selectUsrgrps"] = []any{"usrgrpid", "name"}
+	}
+	return options
 }

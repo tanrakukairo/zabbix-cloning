@@ -254,8 +254,8 @@ the stored configuration. `--yes` and `--quiet` are disabled, and two `y/N`
 confirmations are required before deletion starts. Rejecting either prompt
 aborts without deleting anything.
 
-Admin, the API execution user, Zabbix administrators, read-only roles, and `{$ZC_VERSION}` are retained
-so ZC can continue operating. General settings, authentication settings, and
+Admin, the API execution user, reserved user groups (`usrgrpid=7,13`) and their members,
+read-only roles, and `{$ZC_VERSION}` are retained so ZC can continue operating. General settings, authentication settings, and
 auto-registration settings have no delete API; they are overwritten from the
 store during subsequent application. Authentication is switched to internal
 authentication before user directories and MFA settings are deleted.

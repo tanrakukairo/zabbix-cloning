@@ -548,10 +548,10 @@ func namedRelationIDs(names []string, key string, lookup map[string]any) []any {
 }
 
 func protectedAPIObject(method, name string, item *LocalItem) bool {
-	if method == "user" && (name == superUser || name == guestUser) {
+	if method == "user" && (name == superUser || userBelongsToProtectedGroup(item)) {
 		return true
 	}
-	if method == "usergroup" && name == superGroup {
+	if method == "usergroup" && protectedUserGroupID(item.ID) {
 		return true
 	}
 	if method == "role" && (item.ID == "3" || model.Bool(item.Data["readonly"], false)) {
@@ -561,6 +561,19 @@ func protectedAPIObject(method, name string, item *LocalItem) bool {
 		return true
 	}
 	return false
+}
+
+func userBelongsToProtectedGroup(item *LocalItem) bool {
+	for _, group := range objects(item.Data["usrgrps"]) {
+		if protectedUserGroupID(model.String(group["usrgrpid"])) {
+			return true
+		}
+	}
+	return false
+}
+
+func protectedUserGroupID(id string) bool {
+	return id == adminGroupID || id == internalGroupID
 }
 
 func objectMap(value any) map[string]any {

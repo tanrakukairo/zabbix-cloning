@@ -19,7 +19,7 @@ func (e *Engine) CreateMasterData(ctx context.Context) error {
 	dataset := model.Dataset{}
 	for method, items := range e.Local {
 		for _, item := range items {
-			if method == "user" && item.Name == superUser || method == "usergroup" && item.Name == superGroup || method == "role" && item.ID == "3" || method == "usermacro" && item.Name == versionMacro {
+			if method == "user" && item.Name == superUser || method == "usergroup" && protectedUserGroupID(item.ID) || method == "role" && item.ID == "3" || method == "usermacro" && item.Name == versionMacro {
 				continue
 			}
 			data := model.CloneObject(item.Data)

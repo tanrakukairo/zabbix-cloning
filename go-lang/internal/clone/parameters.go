@@ -54,6 +54,9 @@ func NewParameters(version zabbix.Version) (*Parameters, error) {
 	if err := decoder.Decode(&data); err != nil {
 		return nil, err
 	}
+	user := data.Methods["user"]
+	user.Options["selectUsrgrps"] = []any{"usrgrpid", "name"}
+	data.Methods["user"] = user
 	if version.Major < 7 {
 		delete(data.Methods, "proxygroup")
 		delete(data.Methods, "mfa")
