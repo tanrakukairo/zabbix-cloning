@@ -94,8 +94,9 @@ Set the location with `--file.store.path` or `ZC_FILE_STORE_PATH`.
 
 ### Redis
 
-- DB 0: version metadata
-- DB 1: bzip2-compressed configuration data
+- VERSION and DATA use one selected database (default: DB 0)
+- Keys: `ZC_VERSION:<VERSION_ID>` and `ZC_DATA:<VERSION_ID>`
+- DATA is bzip2-compressed
 - Default port: `6379`
 
 ### DynamoDB
@@ -144,7 +145,7 @@ bin/zc replica --no.config.files --yes \
 bin/zc master --no.config.files --yes \
   --node monitor \
   --endpoint https://zabbix.example.com --token TOKEN \
-  --store.type redis --store.endpoint localhost --store.port 6379
+  --store.type redis --store.endpoint localhost --store.port 6379 --store.db 0
 ```
 
 ### DynamoDB or LocalStack
@@ -271,6 +272,7 @@ is applied to virtual state before subsequent differences are calculated.
 | `-s`, `--store.type file\|redis\|dydb\|direct` | Store type |
 | `-se`, `--store.endpoint VALUE` | Redis host, DynamoDB Region/URL, or direct master URL |
 | `-sp`, `--store.port PORT` | Redis port |
+| `-sd`, `--store.db DB` | Redis database number; default: 0 |
 | `-sa`, `--store.access VALUE` | AWS access key or direct master node name |
 | `-sc`, `--store.credential VALUE` | AWS secret key, Redis password, or direct master token |
 | `-sl`, `--store.limit N` | DynamoDB writes for wait decisions; default: 10 |
@@ -378,6 +380,7 @@ Configuration-file-only values:
 | `store_connect.aws_endpoint_url` | DynamoDB-compatible endpoint URL |
 | `store_connect.redis_host` | Redis host |
 | `store_connect.redis_port` | Redis port |
+| `store_connect.redis_db` | Redis database number; default: 0 |
 | `store_connect.direct_node` | Direct master node name |
 | `store_connect.direct_endpoint` | Direct master URL |
 
@@ -469,9 +472,11 @@ data. First inspect differences without delete options. `--initialize` or
 
 ## Data Compatibility
 
-The Go version and [Python legacy version](prototype/readme.md) share file,
-Redis, and DynamoDB data formats. Each version can read data written by the
-other.
+The Go version and [Python legacy version](prototype/readme.md) share file and
+DynamoDB data formats. Their Redis formats are not compatible: Go uses one
+database, while the legacy Python version splits data across DB 0 and DB 1.
+The former Redis format split across DB 0 and DB 1 is not migrated automatically;
+recreate the stored data after upgrading.
 
 ## Verification Status
 

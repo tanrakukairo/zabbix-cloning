@@ -55,6 +55,7 @@ type Config struct {
 	StoreType       string
 	StoreEndpoint   string
 	StorePort       int
+	StoreDB         int
 	StoreAccess     string
 	StoreCredential string
 	StoreLimit      int
@@ -130,6 +131,22 @@ func Parse(args []string, mode string) (*Config, error) {
 	}
 
 	c := fromRaw(raw)
+	if c.StoreType == "redis" {
+		database, exists := raw["store_db"]
+		if !exists || model.String(database) == "" {
+			database, exists = objectValue(raw["store_connect"])["redis_db"]
+		}
+		if exists && model.String(database) != "" {
+			value, parseErr := strconv.Atoi(model.String(database))
+			if parseErr != nil {
+				return nil, fmt.Errorf("Redis database number must be an integer")
+			}
+			c.StoreDB = value
+		}
+		if c.StoreDB < 0 {
+			return nil, fmt.Errorf("Redis database number must be non-negative")
+		}
+	}
 	c.InitializeFull = boolValue(values, "initialize_full", false)
 	c.Command = command
 	c.ConfigFile = configFile
@@ -217,6 +234,7 @@ func fromRaw(raw map[string]any) *Config {
 		Description: stringValue(raw, "description", ""), CloningSuperAdmin: boolValue(raw, "cloning_super_admin", false),
 		StoreType: storeType, StoreEndpoint: endpoint,
 		StorePort:       intValue(raw, "store_port", objectInt(storeConnect, "redis_port", 6379)),
+		StoreDB:         intValue(raw, "store_db", objectInt(storeConnect, "redis_db", 0)),
 		StoreAccess:     access,
 		StoreCredential: credential,
 		StoreLimit:      intValue(raw, "store_limit", objectInt(storeConnect, "dydb_limit", 10)),
@@ -260,7 +278,7 @@ func (c *Config) Summary() string {
 	lines = append(lines, "  Authentication Method: "+auth, "  Store Type: "+c.StoreType)
 	switch c.StoreType {
 	case "redis":
-		lines = append(lines, fmt.Sprintf("    Redis Endpoint: %s:%d", first(c.StoreEndpoint, "localhost"), c.StorePort))
+		lines = append(lines, fmt.Sprintf("    Redis Endpoint: %s:%d (DB %d)", first(c.StoreEndpoint, "localhost"), c.StorePort, c.StoreDB))
 	case "dydb":
 		lines = append(lines, "    AWS Region: "+c.AWSRegion)
 		if c.AWSEndpointURL != "" {

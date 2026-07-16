@@ -18,6 +18,7 @@ var aliases = map[string]string{
 	"--checknow.interval": "checknow_interval", "--disable.monitoring": "disable_monitoring", "--parallel.host.apply": "parallel_host_apply",
 	"-s": "store_type", "--store.type": "store_type", "-se": "store_endpoint", "--store.endpoint": "store_endpoint",
 	"-sp": "store_port", "--store.port": "store_port", "-sa": "store_access", "--store.access": "store_access",
+	"-sd": "store_db", "--store.db": "store_db",
 	"-sc": "store_credential", "--store.credential": "store_credential", "-sl": "store_limit", "--store.limit": "store_limit",
 	"-sw": "store_interval", "--store.interval": "store_interval", "--file.store.path": "file_store_path",
 	"--method": "method", "--name": "name", "--id.only": "id_only",
@@ -119,6 +120,7 @@ Store options:
   -s, --store.type file|redis|dydb|direct  Select the configuration store
   -se, --store.endpoint REGION|URL|HOST    Set the store endpoint
   -sp, --store.port PORT                   Set the Redis port
+  -sd, --store.db DB                       Set the Redis database number (default: 0)
   -sa, --store.access VALUE                Set AWS access key or direct node name
   -sc, --store.credential VALUE            Set a store credential or direct token
   --file.store.path PATH                   Set the file-store directory
@@ -147,6 +149,7 @@ Options:
   -s, --store.type file|redis|dydb|direct  Select the configuration store
   -se, --store.endpoint REGION|URL|HOST    Set the store endpoint
   -sp, --store.port PORT                   Set the Redis port
+  -sd, --store.db DB                       Set the Redis database number (default: 0)
   -sa, --store.access VALUE                Set AWS access key or direct node name
   -sc, --store.credential VALUE            Set a store credential or direct token
   --file.store.path PATH                   Set the file-store directory

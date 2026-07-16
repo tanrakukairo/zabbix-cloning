@@ -5,27 +5,25 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 
 	redislib "github.com/redis/go-redis/v9"
 	"github.com/tanrakukairo/zabbix-cloning/internal/config"
 	"github.com/tanrakukairo/zabbix-cloning/internal/model"
 )
 
-type Redis struct{ versions, data *redislib.Client }
+const (
+	redisVersionPrefix = "ZC_VERSION:"
+	redisDataPrefix    = "ZC_DATA:"
+)
+
+type Redis struct{ client *redislib.Client }
 
 func NewRedis(ctx context.Context, cfg *config.Config) (*Redis, error) {
 	address := fmt.Sprintf("%s:%d", firstNonEmpty(cfg.StoreEndpoint, "localhost"), cfg.StorePort)
-	options := &redislib.Options{Addr: address, Password: cfg.StoreCredential}
-	versionOptions := *options
-	versionOptions.DB = 0
-	dataOptions := *options
-	dataOptions.DB = 1
-	store := &Redis{versions: redislib.NewClient(&versionOptions), data: redislib.NewClient(&dataOptions)}
-	if err := store.versions.Ping(ctx).Err(); err != nil {
-		_ = store.Close()
-		return nil, err
-	}
-	if err := store.data.Ping(ctx).Err(); err != nil {
+	options := &redislib.Options{Addr: address, Password: cfg.StoreCredential, DB: cfg.StoreDB}
+	store := &Redis{client: redislib.NewClient(options)}
+	if err := store.client.Ping(ctx).Err(); err != nil {
 		_ = store.Close()
 		return nil, err
 	}
@@ -35,11 +33,11 @@ func NewRedis(ctx context.Context, cfg *config.Config) (*Redis, error) {
 func (r *Redis) Versions(ctx context.Context, versionID string) ([]model.Version, error) {
 	var keys []string
 	if versionID != "" {
-		keys = []string{versionID}
+		keys = []string{redisVersionKey(versionID)}
 	} else {
 		var cursor uint64
 		for {
-			batch, next, err := r.versions.Scan(ctx, cursor, "*", 500).Result()
+			batch, next, err := r.client.Scan(ctx, cursor, redisVersionPrefix+"*", 500).Result()
 			if err != nil {
 				return nil, err
 			}
@@ -52,7 +50,7 @@ func (r *Redis) Versions(ctx context.Context, versionID string) ([]model.Version
 	}
 	versions := make([]model.Version, 0, len(keys))
 	for _, key := range keys {
-		values, err := r.versions.HGetAll(ctx, key).Result()
+		values, err := r.client.HGetAll(ctx, key).Result()
 		if err != nil {
 			return nil, err
 		}
@@ -61,14 +59,14 @@ func (r *Redis) Versions(ctx context.Context, versionID string) ([]model.Version
 		}
 		unixTime, _ := strconv.ParseInt(values["UNIXTIME"], 10, 64)
 		masterVersion, _ := strconv.ParseFloat(values["MASTER_VERSION"], 64)
-		versions = append(versions, model.Version{VersionID: key, UnixTime: unixTime, MasterVersion: masterVersion, Description: values["DESCRIPTION"]})
+		versions = append(versions, model.Version{VersionID: strings.TrimPrefix(key, redisVersionPrefix), UnixTime: unixTime, MasterVersion: masterVersion, Description: values["DESCRIPTION"]})
 	}
 	sort.Slice(versions, func(i, j int) bool { return versions[i].UnixTime > versions[j].UnixTime })
 	return versions, nil
 }
 
 func (r *Redis) Load(ctx context.Context, version model.Version) (model.Dataset, error) {
-	values, err := r.data.HGetAll(ctx, version.VersionID).Result()
+	values, err := r.client.HGetAll(ctx, redisDataKey(version.VersionID)).Result()
 	if err != nil {
 		return nil, err
 	}
@@ -97,49 +95,65 @@ func (r *Redis) Save(ctx context.Context, version model.Version, dataset model.D
 		}
 		dataValues[record.DataID] = payload
 	}
-	pipe := r.data.TxPipeline()
-	pipe.Del(ctx, version.VersionID)
+	pipe := r.client.TxPipeline()
+	pipe.Del(ctx, redisDataKey(version.VersionID))
 	if len(dataValues) > 0 {
-		pipe.HSet(ctx, version.VersionID, dataValues)
+		pipe.HSet(ctx, redisDataKey(version.VersionID), dataValues)
 	}
-	if _, err := pipe.Exec(ctx); err != nil {
-		return err
-	}
-	return r.versions.HSet(ctx, version.VersionID, versionValues).Err()
+	pipe.HSet(ctx, redisVersionKey(version.VersionID), versionValues)
+	_, err := pipe.Exec(ctx)
+	return err
 }
 
 func (r *Redis) Clear(ctx context.Context, table string) error {
 	switch table {
 	case "ALL":
-		if err := r.versions.FlushDB(ctx).Err(); err != nil {
+		if err := r.deleteKeys(ctx, redisVersionPrefix+"*"); err != nil {
 			return err
 		}
-		return r.data.FlushDB(ctx).Err()
+		return r.deleteKeys(ctx, redisDataPrefix+"*")
 	case "VERSION":
-		return r.versions.FlushDB(ctx).Err()
+		return r.deleteKeys(ctx, redisVersionPrefix+"*")
 	case "DATA":
-		return r.data.FlushDB(ctx).Err()
+		return r.deleteKeys(ctx, redisDataPrefix+"*")
 	default:
 		return fmt.Errorf("invalid table %q", table)
 	}
 }
 func (r *Redis) DeleteRecord(ctx context.Context, versionID, dataID string) error {
-	return r.data.HDel(ctx, versionID, dataID).Err()
+	return r.client.HDel(ctx, redisDataKey(versionID), dataID).Err()
 }
 func (r *Redis) DeleteVersion(ctx context.Context, versionID string) error {
-	pipe := r.versions.TxPipeline()
-	pipe.Del(ctx, versionID)
-	r.data.Del(ctx, versionID)
+	pipe := r.client.TxPipeline()
+	pipe.Del(ctx, redisVersionKey(versionID), redisDataKey(versionID))
 	_, err := pipe.Exec(ctx)
 	return err
 }
 func (r *Redis) Close() error {
-	err := r.versions.Close()
-	if dataErr := r.data.Close(); err == nil {
-		err = dataErr
-	}
-	return err
+	return r.client.Close()
 }
+
+func (r *Redis) deleteKeys(ctx context.Context, pattern string) error {
+	var cursor uint64
+	for {
+		keys, next, err := r.client.Scan(ctx, cursor, pattern, 500).Result()
+		if err != nil {
+			return err
+		}
+		if len(keys) > 0 {
+			if err := r.client.Del(ctx, keys...).Err(); err != nil {
+				return err
+			}
+		}
+		cursor = next
+		if cursor == 0 {
+			return nil
+		}
+	}
+}
+
+func redisVersionKey(versionID string) string { return redisVersionPrefix + versionID }
+func redisDataKey(versionID string) string    { return redisDataPrefix + versionID }
 
 func firstNonEmpty(values ...string) string {
 	for _, value := range values {

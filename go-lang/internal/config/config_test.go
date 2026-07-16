@@ -73,6 +73,43 @@ func TestDefaultLogName(t *testing.T) {
 	}
 }
 
+func TestRedisDatabaseConfiguration(t *testing.T) {
+	defaultConfig, err := Parse([]string{"master", "--no.config.files", "--store.type", "redis"}, "zc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if defaultConfig.StoreDB != 0 {
+		t.Fatalf("unexpected default Redis database: %d", defaultConfig.StoreDB)
+	}
+
+	configFile := filepath.Join(t.TempDir(), "zc.conf")
+	if err := os.WriteFile(configFile, []byte(`{"store_type":"redis","store_connect":{"redis_db":4}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	fileConfig, err := Parse([]string{"master", "--config.file", configFile}, "zc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fileConfig.StoreDB != 4 {
+		t.Fatalf("unexpected configured Redis database: %d", fileConfig.StoreDB)
+	}
+
+	cliConfig, err := Parse([]string{"master", "--config.file", configFile, "--store.db", "7"}, "zc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cliConfig.StoreDB != 7 {
+		t.Fatalf("CLI did not override Redis database: %d", cliConfig.StoreDB)
+	}
+
+	if _, err := Parse([]string{"master", "--no.config.files", "--store.type", "redis", "--store.db", "-1"}, "zc"); err == nil {
+		t.Fatal("negative Redis database was accepted")
+	}
+	if _, err := Parse([]string{"master", "--no.config.files", "--store.type", "redis", "--store.db", "invalid"}, "zc"); err == nil {
+		t.Fatal("non-integer Redis database was accepted")
+	}
+}
+
 func TestLegacyCloneAndRoleOptionAreRejected(t *testing.T) {
 	if _, err := Parse([]string{"clone", "--no.config.files"}, "zc"); err == nil {
 		t.Fatal("legacy clone command must be rejected")
