@@ -179,7 +179,6 @@ var ErrHelp = errors.New("help requested")
 func fromRaw(raw map[string]any) *Config {
 	storeConnect := objectValue(raw["store_connect"])
 	role := stringValue(raw, "role", "master")
-	skipTemplateDefault := role == "worker"
 	storeType := stringValue(raw, "store_type", "file")
 	endpoint := stringValue(raw, "store_endpoint", "")
 	access := stringValue(raw, "store_access", "")
@@ -209,7 +208,7 @@ func fromRaw(raw map[string]any) *Config {
 		Initialize: boolValue(raw, "initialize", false), Online: boolValue(raw, "online", false), UseIP: boolValue(raw, "useip", false),
 		HostUpdate: boolValue(raw, "host_update", false), ForceHostUpdate: boolValue(raw, "force_host_update", false),
 		NoUUID: boolValue(raw, "no_uuid", false), DeleteHost: boolValue(raw, "delete_host", false),
-		DeleteAPI: boolValue(raw, "delete_api", false), SkipTemplate: boolValue(raw, "skip_template", skipTemplateDefault),
+		DeleteAPI: boolValue(raw, "delete_api", false), SkipTemplate: boolValue(raw, "skip_template", false),
 		SkipHost: boolValue(raw, "skip_host", false), CheckNowExecute: boolValue(raw, "checknow_execute", false),
 		DisableMonitoring: boolValue(raw, "disable_monitoring", false), UpdatePassword: boolValue(raw, "update_password", false),
 		TargetVersion: stringValue(raw, "version", ""), TemplateSeparate: intValue(raw, "template_separate_num", intValue(raw, "template_separate", 100)),

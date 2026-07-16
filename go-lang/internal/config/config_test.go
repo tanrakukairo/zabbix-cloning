@@ -41,6 +41,28 @@ func TestRoleComesFromCommand(t *testing.T) {
 	}
 }
 
+func TestSkipTemplateRequiresExplicitSetting(t *testing.T) {
+	for _, role := range []string{"master", "worker", "replica"} {
+		t.Run(role+" default", func(t *testing.T) {
+			cfg, err := Parse([]string{role, "--no.config.files"}, "zc")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cfg.SkipTemplate {
+				t.Fatalf("skip template was enabled without an explicit setting for role %s", role)
+			}
+		})
+	}
+
+	cfg, err := Parse([]string{"worker", "--no.config.files", "--skip.template"}, "zc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.SkipTemplate {
+		t.Fatal("skip template was not enabled by --skip.template")
+	}
+}
+
 func TestDefaultLogName(t *testing.T) {
 	cfg, err := Parse([]string{"master", "--no.config.files"}, "zc")
 	if err != nil {
