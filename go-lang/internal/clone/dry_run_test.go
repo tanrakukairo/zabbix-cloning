@@ -152,3 +152,83 @@ func TestPrepareReplicaDefersVersionSelectionForDirectStore(t *testing.T) {
 		t.Fatalf("direct mode selected a version before loading its source: %v", err)
 	}
 }
+
+func TestPrepareReplicaRunsInitializeForDirectStore(t *testing.T) {
+	api, err := zabbix.New("http://127.0.0.1:1", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	api.SetDryRun(true)
+	logger, err := logx.New("test", "INFO", "", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer logger.Close()
+	parameters, err := NewParameters(zabbix.ParseVersion("7.0.21"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	local := map[string]map[string]*LocalItem{}
+	for method := range parameters.Methods {
+		local[method] = map[string]*LocalItem{}
+	}
+	for _, method := range []string{"correlation", "drule", "action", "script", "maintenance"} {
+		local[method]["existing-"+method] = &LocalItem{ID: "1", Name: "existing-" + method, Data: model.Object{"name": "existing-" + method}}
+	}
+	engine := &Engine{
+		API: api, Log: logger, Params: parameters, Local: local,
+		Config: &config.Config{Role: "replica", StoreType: "direct", DryRun: true, Initialize: true},
+	}
+	engine.enableDryRunVirtualState()
+	if err := engine.prepareReplica(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	for _, method := range []string{"correlation", "drule", "action", "script", "maintenance"} {
+		if len(engine.Local[method]) != 0 {
+			t.Fatalf("direct initialize did not clear %s: %#v", method, engine.Local[method])
+		}
+		if got := api.DryRunMethods()[method+".delete"]; got != 1 {
+			t.Fatalf("%s.delete calls = %d, want 1", method, got)
+		}
+	}
+}
+
+func TestPrepareReplicaRunsFullInitializeForDirectStore(t *testing.T) {
+	api, err := zabbix.New("http://127.0.0.1:1", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	api.SetDryRun(true)
+	logger, err := logx.New("test", "INFO", "", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer logger.Close()
+	parameters, err := NewParameters(zabbix.ParseVersion("7.0.21"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	local := map[string]map[string]*LocalItem{}
+	for method := range parameters.Methods {
+		local[method] = map[string]*LocalItem{}
+	}
+	local["host"]["existing-host"] = &LocalItem{ID: "10", Name: "existing-host", Data: model.Object{"host": "existing-host"}}
+	engine := &Engine{
+		API: api, Log: logger, Params: parameters, Local: local,
+		Config:  &config.Config{Role: "replica", StoreType: "direct", DryRun: true, Initialize: true, InitializeFull: true},
+		Version: zabbix.ParseVersion("7.0.21"),
+	}
+	engine.enableDryRunVirtualState()
+	if err := engine.prepareReplica(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if engine.Local["host"]["existing-host"] != nil {
+		t.Fatal("direct full initialize did not delete existing host")
+	}
+	if got := api.DryRunMethods()["authentication.update"]; got != 1 {
+		t.Fatalf("authentication.update calls = %d, want 1", got)
+	}
+	if got := api.DryRunMethods()["host.delete"]; got != 1 {
+		t.Fatalf("host.delete calls = %d, want 1", got)
+	}
+}

@@ -218,18 +218,17 @@ func (e *Engine) ensureHostUUIDs(ctx context.Context) error {
 func (e *Engine) prepareReplica(ctx context.Context) error {
 	// Direct mode builds the source dataset after the target is prepared.
 	// Version compatibility is checked once that dataset has been loaded.
-	if e.Config.StoreType == "direct" {
-		return nil
+	if e.Config.StoreType != "direct" {
+		version, err := store.Latest(e.Versions, e.Config.TargetVersion)
+		if err != nil {
+			return err
+		}
+		if e.Version.Float() < version.MasterVersion {
+			return fmt.Errorf("target Zabbix %s is older than store data %.1f", e.Version.String(), version.MasterVersion)
+		}
+		e.NewVersion = version
+		e.Log.Infof("Cloning Version: %s", version.VersionID)
 	}
-	version, err := store.Latest(e.Versions, e.Config.TargetVersion)
-	if err != nil {
-		return err
-	}
-	if e.Version.Float() < version.MasterVersion {
-		return fmt.Errorf("target Zabbix %s is older than store data %.1f", e.Version.String(), version.MasterVersion)
-	}
-	e.NewVersion = version
-	e.Log.Infof("Cloning Version: %s", version.VersionID)
 	if e.Config.Initialize {
 		if e.Config.InitializeFull {
 			return e.initializeFull(ctx)
