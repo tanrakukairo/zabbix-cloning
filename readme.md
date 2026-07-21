@@ -56,6 +56,7 @@ Windowsでは`bin/zc.exe`と`bin/view.exe`が生成されます。
 - Zabbix一般設定、自動登録設定
 
 Zabbix APIから取得できないパスワードやシークレットは、設定ファイルで補います。
+SMTP認証がNormal Password（`smtp_authentication=1`）でpasswordが空のメディアタイプは、インポートできないためmasterデータ生成時とworker/replicaの適用時に除外します。
 
 ## ロール
 

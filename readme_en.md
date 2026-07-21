@@ -56,6 +56,9 @@ Windows builds create `bin/zc.exe` and `bin/view.exe`.
 
 Passwords and secrets unavailable through the Zabbix API are supplemented by
 configuration files.
+Media types using Normal Password SMTP authentication (`smtp_authentication=1`)
+with an empty password are excluded when master data is generated and when
+worker/replica data is applied because they cannot be imported.
 
 ## Roles
 

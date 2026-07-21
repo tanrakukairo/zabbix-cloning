@@ -66,6 +66,10 @@ func (e *Engine) prepareMasterItem(method string, data model.Object) bool {
 	switch method {
 	case "settings":
 		e.replaceSettingsIDs(data, true)
+	case "mediatype":
+		if mediaTypeHasEmptyNormalPassword(data) {
+			return false
+		}
 	case "action":
 		normalizeActionFields(data, false)
 		filter := objectMap(data["filter"])
@@ -104,6 +108,15 @@ func (e *Engine) prepareMasterItem(method string, data model.Object) bool {
 		}
 	}
 	return true
+}
+
+func mediaTypeHasEmptyNormalPassword(data model.Object) bool {
+	return mediaTypeUsesNormalPassword(data) && model.String(data["password"]) == ""
+}
+
+func mediaTypeUsesNormalPassword(data model.Object) bool {
+	authentication := strings.ToUpper(model.String(data["smtp_authentication"]))
+	return authentication == "1" || authentication == "PASSWORD" || authentication == "NORMAL_PASSWORD"
 }
 
 func relationNames(value any) []any {

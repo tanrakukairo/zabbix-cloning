@@ -35,13 +35,10 @@ func (e *Engine) ApplyConfiguration(ctx context.Context) error {
 				triggers = append(triggers, model.CloneObject(item.Data))
 			}
 		case "mediatype":
-			values := make([]any, 0, len(items))
-			for _, item := range items {
-				data := model.CloneObject(item.Data)
-				normalizeMediaType(data, e.Version)
-				values = append(values, data)
+			values := prepareMediaTypes(items, e.Version)
+			if len(values) > 0 {
+				base["media_types"] = values
 			}
-			base["media_types"] = values
 		default:
 			values := make([]any, 0, len(items))
 			for _, item := range items {
@@ -109,6 +106,19 @@ func (e *Engine) ApplyConfiguration(ctx context.Context) error {
 		return err
 	}
 	return nil
+}
+
+func prepareMediaTypes(items []model.StoreItem, version interface{ AtLeast(int, int) bool }) []any {
+	values := make([]any, 0, len(items))
+	for _, item := range items {
+		data := model.CloneObject(item.Data)
+		if mediaTypeHasEmptyNormalPassword(data) {
+			continue
+		}
+		normalizeMediaType(data, version)
+		values = append(values, data)
+	}
+	return values
 }
 
 func (e *Engine) prepareTemplateIdentity(ctx context.Context, template model.Object) error {
@@ -212,6 +222,13 @@ func normalizeMediaType(data model.Object, version interface{ AtLeast(int, int) 
 	}
 	if version.AtLeast(7, 0) {
 		delete(data, "content_type")
+	}
+	if model.String(data["type"]) == "EMAIL" &&
+		model.String(data["smtp_authentication"]) == "PASSWORD" &&
+		model.String(data["username"]) == "" {
+		data["smtp_authentication"] = "NONE"
+		delete(data, "username")
+		delete(data, "password")
 	}
 }
 
