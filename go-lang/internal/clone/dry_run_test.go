@@ -113,6 +113,40 @@ func TestDryRunConfigurationAddsVirtualIDs(t *testing.T) {
 		t.Fatalf("configuration objects have no virtual IDs: %#v", engine.IDReplace)
 	}
 }
+
+func TestDryRunConfigurationPreservesLocalHostGroupUUID(t *testing.T) {
+	parameters, err := NewParameters(zabbix.ParseVersion("7.0.21"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	engine := &Engine{
+		Params: parameters,
+		Config: &config.Config{Role: "replica", DryRun: true},
+		Local: map[string]map[string]*LocalItem{
+			"hostgroup": {
+				"Linux servers": {
+					ID:   "2",
+					Name: "Linux servers",
+					Data: model.Object{"name": "Linux servers", "uuid": "target-uuid"},
+				},
+			},
+		},
+		Dataset: model.Dataset{
+			"hostgroup": {{
+				Name: "Linux servers",
+				Data: model.Object{"name": "Linux servers", "uuid": "master-uuid"},
+			}},
+		},
+	}
+	engine.enableDryRunVirtualState()
+
+	engine.virtualApplyConfiguration()
+
+	if got := model.String(engine.Local["hostgroup"]["Linux servers"].Data["uuid"]); got != "target-uuid" {
+		t.Fatalf("virtual host group UUID = %q, want target-uuid", got)
+	}
+}
+
 func (s *dryRunStore) Load(context.Context, model.Version) (model.Dataset, error) {
 	return nil, nil
 }

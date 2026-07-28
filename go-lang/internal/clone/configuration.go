@@ -42,7 +42,11 @@ func (e *Engine) ApplyConfiguration(ctx context.Context) error {
 		default:
 			values := make([]any, 0, len(items))
 			for _, item := range items {
-				values = append(values, model.CloneObject(item.Data))
+				data := model.CloneObject(item.Data)
+				if method == "hostgroup" {
+					e.useLocalHostGroupUUID(data)
+				}
+				values = append(values, data)
 			}
 			base[section] = values
 		}
@@ -119,6 +123,21 @@ func prepareMediaTypes(items []model.StoreItem, version interface{ AtLeast(int, 
 		values = append(values, data)
 	}
 	return values
+}
+
+func (e *Engine) useLocalHostGroupUUID(data model.Object) {
+	name := model.String(data["name"])
+	if name == "" {
+		return
+	}
+	local := e.Local["hostgroup"][name]
+	if local == nil {
+		return
+	}
+	localUUID := model.String(local.Data["uuid"])
+	if localUUID != "" {
+		data["uuid"] = localUUID
+	}
 }
 
 func (e *Engine) prepareTemplateIdentity(ctx context.Context, template model.Object) error {

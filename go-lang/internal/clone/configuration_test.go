@@ -106,6 +106,39 @@ func TestPrepareMasterItemExcludesMediaTypeWithoutPassword(t *testing.T) {
 	}
 }
 
+func TestUseLocalHostGroupUUIDReconcilesSameName(t *testing.T) {
+	engine := &Engine{
+		Local: map[string]map[string]*LocalItem{
+			"hostgroup": {
+				"Linux servers": {
+					Name: "Linux servers",
+					Data: model.Object{"name": "Linux servers", "uuid": "target-uuid"},
+				},
+			},
+		},
+	}
+	group := model.Object{"name": "Linux servers", "uuid": "master-uuid"}
+
+	engine.useLocalHostGroupUUID(group)
+
+	if got := model.String(group["uuid"]); got != "target-uuid" {
+		t.Fatalf("host group UUID = %q, want target-uuid", got)
+	}
+}
+
+func TestUseLocalHostGroupUUIDKeepsNewGroupUUID(t *testing.T) {
+	engine := &Engine{
+		Local: map[string]map[string]*LocalItem{"hostgroup": {}},
+	}
+	group := model.Object{"name": "New group", "uuid": "master-uuid"}
+
+	engine.useLocalHostGroupUUID(group)
+
+	if got := model.String(group["uuid"]); got != "master-uuid" {
+		t.Fatalf("host group UUID = %q, want master-uuid", got)
+	}
+}
+
 func TestRegenerateUUIDsIsDeterministicUUIDv4(t *testing.T) {
 	original := "e1ca624566424496bff9d90c261ab37b"
 	child := model.Object{"uuid": "79aa9ebb1ce64944a78a7c8d7603f53b"}

@@ -115,7 +115,11 @@ func (e *Engine) virtualApplyConfiguration() {
 			continue
 		}
 		for _, item := range e.Dataset[method] {
-			e.virtualUpsert(method, item.Name, item.Data)
+			data := model.CloneObject(item.Data)
+			if method == "hostgroup" {
+				e.useLocalHostGroupUUID(data)
+			}
+			e.virtualUpsert(method, item.Name, data)
 		}
 	}
 }
