@@ -105,6 +105,21 @@ func (e *Engine) deleteAllForInitialize(ctx context.Context, method string, full
 	if method == "usermacro" {
 		deleteMethod = "usermacro.deleteglobal"
 	}
+	if method == "role" {
+		deleted := 0
+		for index, id := range ids {
+			if _, err := e.API.Call(ctx, deleteMethod, []any{id}); err != nil {
+				e.Log.Warningf("Initialize[role]: %s delete skipped: %v", names[index], err)
+				continue
+			}
+			if e.dryRunVirtual {
+				e.virtualDelete(method, names[index])
+			}
+			deleted++
+		}
+		e.Log.Infof("Initialize[role]: %d deleted", deleted)
+		return nil
+	}
 	if _, err := e.API.Call(ctx, deleteMethod, ids); err != nil {
 		return fmt.Errorf("initialize %s: %w", method, err)
 	}

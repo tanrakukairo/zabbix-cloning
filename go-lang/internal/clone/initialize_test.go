@@ -3,6 +3,9 @@ package clone
 import (
 	"bufio"
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -112,5 +115,70 @@ func TestFullInitializeUserGetIncludesGroupAccess(t *testing.T) {
 	fields := toAnyList(options["selectUsrgrps"])
 	if len(fields) != 2 || model.String(fields[0]) != "usrgrpid" || model.String(fields[1]) != "name" {
 		t.Fatalf("full initialize user groups do not include usrgrpid: %#v", options)
+	}
+}
+
+func TestInitializeSkipsOnlyRoleDeleteFailure(t *testing.T) {
+	roleDeleteCalls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		var body struct {
+			Method string   `json:"method"`
+			Params []string `json:"params"`
+		}
+		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+			t.Error(err)
+			http.Error(writer, "invalid request", http.StatusBadRequest)
+			return
+		}
+		if body.Method == "role.delete" {
+			roleDeleteCalls++
+			if len(body.Params) == 1 && body.Params[0] == "5" {
+				_ = json.NewEncoder(writer).Encode(map[string]any{
+					"jsonrpc": "2.0", "result": map[string]any{"roleids": []string{"5"}}, "id": 1,
+				})
+				return
+			}
+		}
+		http.Error(writer, "delete rejected", http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	api, err := zabbix.New(server.URL, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	logger, err := logx.New("test", "INFO", "", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer logger.Close()
+
+	engine := &Engine{
+		API: api,
+		Log: logger,
+		Params: &Parameters{Methods: map[string]MethodSpec{
+			"role":   {ID: "roleid", Name: "name"},
+			"action": {ID: "actionid", Name: "name"},
+		}},
+		Local: map[string]map[string]*LocalItem{
+			"role": {
+				"Guest role":  {ID: "4", Name: "Guest role", Data: model.Object{"name": "Guest role"}},
+				"Custom role": {ID: "5", Name: "Custom role", Data: model.Object{"name": "Custom role"}},
+			},
+			"action": {
+				"Test action": {ID: "10", Name: "Test action", Data: model.Object{"name": "Test action"}},
+			},
+		},
+		Config: &config.Config{},
+	}
+
+	if err := engine.deleteAllForInitialize(context.Background(), "role", false); err != nil {
+		t.Fatalf("role delete failure must be skipped: %v", err)
+	}
+	if roleDeleteCalls != 2 {
+		t.Fatalf("roles must be deleted individually after a failure: calls=%d", roleDeleteCalls)
+	}
+	if err := engine.deleteAllForInitialize(context.Background(), "action", false); err == nil {
+		t.Fatal("non-role delete failure must still be returned")
 	}
 }
