@@ -91,7 +91,9 @@ func (e *Engine) deleteAllForInitialize(ctx context.Context, method string, full
 	ids := make([]any, 0, len(items))
 	names := make([]string, 0, len(items))
 	for name, item := range items {
-		if protectedAPIObject(method, name, item) || method == "user" && name == e.Config.User {
+		if protectedAPIObject(method, name, item) ||
+			method == "user" && name == e.Config.User ||
+			method == "hostgroup" && e.isDiscoveryHostGroup(item) {
 			continue
 		}
 		ids = append(ids, item.ID)
@@ -130,6 +132,17 @@ func (e *Engine) deleteAllForInitialize(ctx context.Context, method string, full
 	}
 	e.Log.Infof("Initialize[%s]: %d deleted", method, len(ids))
 	return nil
+}
+
+func (e *Engine) isDiscoveryHostGroup(item *LocalItem) bool {
+	if item == nil {
+		return false
+	}
+	setting := e.Local["settings"]["discovery_groupid"]
+	if setting == nil {
+		return false
+	}
+	return item.ID == model.String(setting.Data["discovery_groupid"])
 }
 
 func (e *Engine) getAllForFullInitialize(ctx context.Context, method string) (map[string]*LocalItem, error) {

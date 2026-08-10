@@ -53,6 +53,10 @@ func TestInitializeFullDeletesAllUnprotectedIDObjects(t *testing.T) {
 	local["usergroup"]["Internal"] = &LocalItem{ID: internalGroupID, Name: "Internal", Data: model.Object{"name": "Internal"}}
 	local["role"]["Super admin role"] = &LocalItem{ID: "3", Name: "Super admin role", Data: model.Object{"readonly": "1"}}
 	local["usermacro"][versionMacro] = &LocalItem{ID: "9", Name: versionMacro, Data: model.Object{"macro": versionMacro}}
+	local["hostgroup"]["Discovered hosts"] = &LocalItem{ID: "23", Name: "Discovered hosts", Data: model.Object{"name": "Discovered hosts"}}
+	local["settings"]["discovery_groupid"] = &LocalItem{
+		Name: "discovery_groupid", Data: model.Object{"discovery_groupid": "23"},
+	}
 
 	engine := &Engine{
 		API: api, Log: logger, Params: parameters, Local: local,
@@ -69,7 +73,7 @@ func TestInitializeFullDeletesAllUnprotectedIDObjects(t *testing.T) {
 		}
 	}
 	for method, name := range map[string]string{
-		"user": superUser, "role": "Super admin role", "usermacro": versionMacro,
+		"user": superUser, "role": "Super admin role", "usermacro": versionMacro, "hostgroup": "Discovered hosts",
 	} {
 		if engine.Local[method][name] == nil {
 			t.Fatalf("protected %s %s was deleted", method, name)
