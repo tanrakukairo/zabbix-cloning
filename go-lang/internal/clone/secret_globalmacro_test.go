@@ -87,6 +87,97 @@ func TestParseSecretGlobalMacrosRejectsInvalidValues(t *testing.T) {
 	}
 }
 
+func TestWorkerAppliesSecretUserMacrosOnlyForExistingHosts(t *testing.T) {
+	type request struct {
+		Method string         `json:"method"`
+		Params map[string]any `json:"params"`
+		ID     uint64         `json:"id"`
+	}
+	var requests []request
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, httpRequest *http.Request) {
+		var current request
+		if err := json.NewDecoder(httpRequest.Body).Decode(&current); err != nil {
+			t.Error(err)
+			writer.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		requests = append(requests, current)
+		result := any(map[string]any{"hostmacroids": []string{"1"}})
+		if current.Method == "usermacro.get" {
+			result = []map[string]any{{"hostmacroid": "31", "hostid": "10", "macro": "{$EXISTING}", "type": "0"}}
+		}
+		_ = json.NewEncoder(writer).Encode(map[string]any{"jsonrpc": "2.0", "result": result, "id": current.ID})
+	}))
+	defer server.Close()
+
+	api, err := zabbix.New(server.URL, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	logger, err := logx.New("test", "INFO", "", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer logger.Close()
+	engine := &Engine{
+		API: api,
+		Log: logger,
+		Config: &config.Config{Role: "worker", Raw: map[string]any{"secret_usermacro": []any{
+			map[string]any{"host": "host-a", "macro": "{$EXISTING}", "value": "updated"},
+			map[string]any{"host": "host-b", "macro": "{$NEW}", "value": "created"},
+			map[string]any{"host": "missing-host", "macro": "{$SKIP}", "value": "ignored"},
+		}}},
+		Local: map[string]map[string]*LocalItem{"host": {
+			"host-a": {ID: "10", Name: "host-a"},
+			"host-b": {ID: "20", Name: "host-b"},
+		}},
+	}
+	if err := engine.ApplySecretMacros(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(requests) != 3 {
+		t.Fatalf("unexpected request count: %d (%#v)", len(requests), requests)
+	}
+	if requests[0].Method != "usermacro.get" || requests[1].Method != "usermacro.update" || requests[2].Method != "usermacro.create" {
+		t.Fatalf("unexpected methods: %#v", requests)
+	}
+	if model.String(requests[1].Params["hostmacroid"]) != "31" || model.Int(requests[1].Params["type"]) != macroTypeSecret {
+		t.Fatalf("unexpected update parameters: %#v", requests[1].Params)
+	}
+	if model.String(requests[2].Params["hostid"]) != "20" || model.String(requests[2].Params["macro"]) != "{$NEW}" || model.Int(requests[2].Params["type"]) != macroTypeSecret {
+		t.Fatalf("unexpected create parameters: %#v", requests[2].Params)
+	}
+}
+
+func TestParseSecretUserMacrosRejectsInvalidValues(t *testing.T) {
+	tests := []any{
+		"invalid",
+		[]any{"invalid"},
+		[]any{map[string]any{"macro": "{$MISSING_HOST}", "value": "value"}},
+		[]any{map[string]any{"host": "host", "value": "missing macro"}},
+		[]any{map[string]any{"host": "host", "macro": "{$MISSING_VALUE}"}},
+		[]any{
+			map[string]any{"host": "host", "macro": "{$DUPLICATE}", "value": "one"},
+			map[string]any{"host": "host", "macro": "{$DUPLICATE}", "value": "two"},
+		},
+	}
+	for _, value := range tests {
+		if _, err := parseSecretUserMacros(value); err == nil {
+			t.Fatalf("expected an error for %#v", value)
+		}
+	}
+}
+
+func TestMasterDoesNotApplySecretMacros(t *testing.T) {
+	engine := &Engine{Config: &config.Config{Role: "master", Raw: map[string]any{
+		"secret_globalmacro": "invalid",
+		"secret_usermacro":   "invalid",
+	}}}
+	if err := engine.ApplySecretMacros(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestDirectMasterDoesNotApplyTargetSecrets(t *testing.T) {
 	cfg := (&config.Config{Raw: map[string]any{}, StoreType: "direct"}).DirectMaster()
 	if !cfg.DirectSource {

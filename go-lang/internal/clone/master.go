@@ -64,6 +64,16 @@ func (e *Engine) excludeLLDDiscoveredHostsFromMaster() int {
 
 func (e *Engine) prepareMasterItem(method string, data model.Object) bool {
 	switch method {
+	case "usermacro":
+		kind, known := macroType(data["type"])
+		if known && kind == macroTypeSecret {
+			return false
+		}
+		if known && kind == macroTypeVault {
+			data["type"] = macroTypeVault
+		}
+	case "host", "template":
+		filterExportMacros(data)
 	case "settings":
 		e.replaceSettingsIDs(data, true)
 	case "mediatype":

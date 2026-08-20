@@ -107,6 +107,7 @@ func (e *Engine) hostIsTarget(data model.Object) bool {
 }
 
 func (e *Engine) normalizeHost(data model.Object) {
+	normalizeHostMacros(data)
 	for _, key := range []string{"items", "triggers", "discovery_rules"} {
 		delete(data, key)
 	}

@@ -231,7 +231,7 @@ the failed targets are also listed at the end of the operation.
 
 `--dry.run` performs normal retrieval and difference calculation but does not
 send create, update, or delete API calls to Zabbix. It also excludes
-`configuration.import`, secret global macros, PSK, CheckNow, real initialization API calls,
+`configuration.import`, secret macros, PSK, CheckNow, real initialization API calls,
 and version-macro updates.
 
 A master does not save a new store version and omits CheckNow waiting. At the
@@ -368,7 +368,13 @@ Put only secrets in `zc.secret`; do not include it in version control.
   },
   "mfa_client_secret": {
     "mfa-name": "CLIENT_SECRET"
-  }
+  },
+  "secret_globalmacro": [
+    {"macro": "{$GLOBAL_SECRET}", "value": "SECRET_VALUE"}
+  ],
+  "secret_usermacro": [
+    {"host": "HOST", "macro": "{$HOST_SECRET}", "value": "SECRET_VALUE"}
+  ]
 }
 ```
 
@@ -429,11 +435,17 @@ Main secret values in `zc.secret`:
 | `enable_user` | Passwords for cloned users |
 | `mfa_client_secret` | Duo MFA client secret |
 | `secret_globalmacro` | Secret global macro names and values |
+| `secret_usermacro` | Host name, macro name, and value for secret host macros |
 | `psk` | PSK identities and PSKs for proxies, hosts, and auto-registration |
 
-When `secret_globalmacro` is set, `FirstProcess` adds or overwrites a
-same-named global macro as `type=1`. An existing macro of another type is
-also changed to the secret type.
+When master data is created, secret-text global, host, and template macros
+are excluded. Vault-secret references and their type are stored and applied
+to a replica as Vault-secret macros.
+
+After applying hosts, workers and replicas add or overwrite
+`secret_globalmacro` as global macros and `secret_usermacro` as host macros
+with `type=1`. `secret_usermacro` entries are applied only when the named host
+exists on the target. Masters do not apply these secret macro settings.
 
 ```json
 {

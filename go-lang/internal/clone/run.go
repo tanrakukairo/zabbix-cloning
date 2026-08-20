@@ -86,6 +86,9 @@ func Run(ctx context.Context, cfg *config.Config, logger *logx.Logger) error {
 		if err = engine.ApplyHosts(ctx); err != nil {
 			return fmt.Errorf("setHostToZabbix: %w", err)
 		}
+		if err = engine.ApplySecretMacros(ctx); err != nil {
+			return fmt.Errorf("setSecretMacrosToZabbix: %w", err)
+		}
 		if err = engine.ExecuteCheckNow(ctx); err != nil {
 			return fmt.Errorf("execCheckNow: %w", err)
 		}

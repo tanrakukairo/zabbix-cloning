@@ -223,7 +223,7 @@ template、host、host interfaceの適用では、`--quiet`を指定しない場
 ### dry-run
 
 `--dry.run`を指定すると、Zabbixからの取得と差分計算は通常どおり行いますが、
-create/update/delete系APIをZabbixへ送信しません。`configuration.import`、secretグローバルマクロ、
+create/update/delete系APIをZabbixへ送信しません。`configuration.import`、secretマクロ、
 PSK、CheckNow、初期化の実API、バージョンマクロ更新も実行対象から除外されます。
 
 masterではストアへ新しいバージョンを保存しません。CheckNowの適用待機時間も省略します。
@@ -347,7 +347,13 @@ dry-runでは実機から削除せず、同じ削除後状態を仮想状態へ�
   },
   "mfa_client_secret": {
     "mfa-name": "CLIENT_SECRET"
-  }
+  },
+  "secret_globalmacro": [
+    {"macro": "{$GLOBAL_SECRET}", "value": "SECRET_VALUE"}
+  ],
+  "secret_usermacro": [
+    {"host": "HOST", "macro": "{$HOST_SECRET}", "value": "SECRET_VALUE"}
+  ]
 }
 ```
 
@@ -407,10 +413,15 @@ Zabbix 7.0では、`settings`に
 | `enable_user` | 複製するユーザーのパスワード |
 | `mfa_client_secret` | Duo MFAのclient secret |
 | `secret_globalmacro` | secret型グローバルマクロの名前と値 |
+| `secret_usermacro` | secret型ホストマクロのホスト名、マクロ名、値 |
 | `psk` | proxy、host、自動登録へ適用するPSK identityとPSK |
 
-`secret_globalmacro`が指定されている場合、`FirstProcess`で同名のグローバルマクロを
-`type=1`として追加または上書きします。既存マクロのtypeが異なる場合もsecret型へ変更します。
+masterデータ作成時、secret text型のグローバル、ホスト、テンプレートマクロは保存対象から
+除外します。Vault secret型は参照値とtypeを保存し、replicaへ同じVault secret型で反映します。
+
+worker／replicaではホスト適用後、`secret_globalmacro`をグローバルマクロ、`secret_usermacro`を
+ホストマクロとして`type=1`で追加または上書きします。`secret_usermacro`は指定したホストが
+適用先に存在する場合だけ反映します。masterではこれらのsecretマクロ設定を反映しません。
 
 `psk`は次の形式で指定します。
 

@@ -63,3 +63,22 @@ func TestHostGetIncludesFlags(t *testing.T) {
 		t.Fatalf("host.get output does not include flags: %#v", parameters.Methods["host"].Options["output"])
 	}
 }
+
+func TestGlobalMacroGetIncludesTypeAndExcludesSecretText(t *testing.T) {
+	parameters, err := NewParameters(zabbix.ParseVersion("7.0.21"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	options := parameters.Methods["usermacro"].Options
+	foundType := false
+	for _, field := range toAnyList(options["output"]) {
+		foundType = foundType || model.String(field) == "type"
+	}
+	if !foundType {
+		t.Fatalf("usermacro.get output does not include type: %#v", options["output"])
+	}
+	types := toAnyList(objectMap(options["filter"])["type"])
+	if len(types) != 2 || model.Int(types[0]) != macroTypeText || model.Int(types[1]) != macroTypeVault {
+		t.Fatalf("unexpected usermacro type filter: %#v", types)
+	}
+}

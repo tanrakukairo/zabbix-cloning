@@ -99,11 +99,6 @@ func (e *Engine) FirstProcess(ctx context.Context) error {
 			return fmt.Errorf("no versions in datastore")
 		}
 	}
-	if !e.Config.DirectSource {
-		if err := e.applySecretGlobalMacros(ctx); err != nil {
-			return fmt.Errorf("set secret global macros: %w", err)
-		}
-	}
 	if err := e.Refresh(ctx); err != nil {
 		return err
 	}
