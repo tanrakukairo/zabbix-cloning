@@ -164,3 +164,72 @@ func hostData(name, uuid string) model.Object {
 		"tags": []any{model.Object{"tag": uniqueTag, "value": uuid}},
 	}
 }
+
+func TestNormalizeSNMPv3PreservesSecurity(t *testing.T) {
+	for _, version := range []any{"SNMP_V3", "SNMPV3", "3", 3} {
+		t.Run(model.String(version), func(t *testing.T) {
+			e := &Engine{Config: &config.Config{}}
+			details := model.Object{
+				"version": version, "securityname": "monitor", "securitylevel": "AUTHPRIV",
+				"authprotocol": "SHA256", "authpassphrase": "{$SNMP_AUTH}",
+				"privprotocol": "AES256", "privpassphrase": "{$SNMP_PRIV}",
+				"contextname": "network", "max_repetitions": "20",
+			}
+			data := model.Object{"type": "SNMP", "details": details, "bulk": "NO"}
+			e.normalizeInterface(data)
+			got := objectMap(data["details"])
+			for key, want := range map[string]int{"version": 3, "securitylevel": 2, "authprotocol": 3, "privprotocol": 3, "bulk": 0} {
+				if got[key] == nil || model.Int(got[key]) != want {
+					t.Errorf("%s = %v, want %d", key, got[key], want)
+				}
+			}
+			for _, key := range []string{"securityname", "authpassphrase", "privpassphrase", "contextname", "max_repetitions"} {
+				if got[key] != details[key] {
+					t.Errorf("%s was lost", key)
+				}
+			}
+			if _, ok := got["community"]; ok {
+				t.Error("SNMPv3 has a community")
+			}
+			if _, ok := data["bulk"]; ok {
+				t.Error("bulk was not moved into details")
+			}
+			if details["securitylevel"] != "AUTHPRIV" {
+				t.Error("input details were mutated")
+			}
+		})
+	}
+}
+
+func TestNormalizeSNMPVersionsAndDefaults(t *testing.T) {
+	for _, tc := range []struct {
+		value any
+		want  int
+	}{
+		{"SNMPV1", 1}, {"1", 1}, {1, 1}, {"SNMP_V2C", 2}, {"SNMPV2", 2}, {2, 2}, {nil, 2},
+	} {
+		e := &Engine{Config: &config.Config{}}
+		data := model.Object{"type": "SNMP", "details": model.Object{"version": tc.value, "community": "{$CUSTOM_COMMUNITY}", "bulk": "YES"}}
+		e.normalizeInterface(data)
+		details := objectMap(data["details"])
+		if model.Int(details["version"]) != tc.want || details["community"] != "{$CUSTOM_COMMUNITY}" || model.Int(details["bulk"]) != 1 {
+			t.Fatalf("unexpected details: %#v", details)
+		}
+	}
+	e := &Engine{Config: &config.Config{}}
+	data := model.Object{"type": "SNMP"}
+	e.normalizeInterface(data)
+	if objectMap(data["details"])["community"] != "{$SNMP_COMMUNITY}" {
+		t.Fatal("default community was lost")
+	}
+}
+
+func TestNormalizeSNMPNumericSecurity(t *testing.T) {
+	e := &Engine{Config: &config.Config{}}
+	data := model.Object{"type": 2, "details": model.Object{"version": 3, "securitylevel": "2", "authprotocol": "5", "privprotocol": 5, "securityname": "monitor"}}
+	e.normalizeInterface(data)
+	details := objectMap(data["details"])
+	if model.Int(details["securitylevel"]) != 2 || model.Int(details["authprotocol"]) != 5 || model.Int(details["privprotocol"]) != 5 {
+		t.Fatal("numeric protocols changed")
+	}
+}

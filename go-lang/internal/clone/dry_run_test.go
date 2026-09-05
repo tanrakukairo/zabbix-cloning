@@ -187,7 +187,7 @@ func TestPrepareReplicaDefersVersionSelectionForDirectStore(t *testing.T) {
 	}
 }
 
-func TestPrepareReplicaRunsInitializeForDirectStore(t *testing.T) {
+func TestPrepareReplicaDefersInitializeForDirectStore(t *testing.T) {
 	api, err := zabbix.New("http://127.0.0.1:1", false)
 	if err != nil {
 		t.Fatal(err)
@@ -218,16 +218,16 @@ func TestPrepareReplicaRunsInitializeForDirectStore(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, method := range []string{"correlation", "drule", "action", "script", "maintenance"} {
-		if len(engine.Local[method]) != 0 {
-			t.Fatalf("direct initialize did not clear %s: %#v", method, engine.Local[method])
+		if len(engine.Local[method]) != 1 {
+			t.Fatalf("preparation changed %s before loading source: %#v", method, engine.Local[method])
 		}
-		if got := api.DryRunMethods()[method+".delete"]; got != 1 {
-			t.Fatalf("%s.delete calls = %d, want 1", method, got)
+		if got := api.DryRunMethods()[method+".delete"]; got != 0 {
+			t.Fatalf("%s.delete calls = %d, want 0", method, got)
 		}
 	}
 }
 
-func TestPrepareReplicaRunsFullInitializeForDirectStore(t *testing.T) {
+func TestPrepareReplicaDefersFullInitializeForDirectStore(t *testing.T) {
 	api, err := zabbix.New("http://127.0.0.1:1", false)
 	if err != nil {
 		t.Fatal(err)
@@ -256,13 +256,13 @@ func TestPrepareReplicaRunsFullInitializeForDirectStore(t *testing.T) {
 	if err := engine.prepareReplica(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if engine.Local["host"]["existing-host"] != nil {
-		t.Fatal("direct full initialize did not delete existing host")
+	if engine.Local["host"]["existing-host"] == nil {
+		t.Fatal("preparation deleted existing host before loading source")
 	}
-	if got := api.DryRunMethods()["authentication.update"]; got != 1 {
-		t.Fatalf("authentication.update calls = %d, want 1", got)
+	if got := api.DryRunMethods()["authentication.update"]; got != 0 {
+		t.Fatalf("authentication.update calls = %d, want 0", got)
 	}
-	if got := api.DryRunMethods()["host.delete"]; got != 1 {
-		t.Fatalf("host.delete calls = %d, want 1", got)
+	if got := api.DryRunMethods()["host.delete"]; got != 0 {
+		t.Fatalf("host.delete calls = %d, want 0", got)
 	}
 }

@@ -45,8 +45,8 @@ type parameterData struct {
 }
 
 func NewParameters(version zabbix.Version) (*Parameters, error) {
-	if version.Major < 6 {
-		return nil, fmt.Errorf("Go implementation supports Zabbix 6.0 or newer; use prototype for %s", version.String())
+	if version.Major < 7 {
+		return nil, fmt.Errorf("Go implementation requires Zabbix 7.0 or newer (got %s)", version.String())
 	}
 	var data parameterData
 	decoder := json.NewDecoder(strings.NewReader(parameterJSON))
@@ -57,18 +57,6 @@ func NewParameters(version zabbix.Version) (*Parameters, error) {
 	user := data.Methods["user"]
 	user.Options["selectUsrgrps"] = []any{"usrgrpid", "name"}
 	data.Methods["user"] = user
-	if version.Major < 7 {
-		delete(data.Methods, "proxygroup")
-		delete(data.Methods, "mfa")
-		delete(data.Methods, "connector")
-		data.Sections.Pre = removeStrings(data.Sections.Pre, "connector", "proxygroup")
-		data.Sections.Post = removeStrings(data.Sections.Post, "mfa")
-		if proxy, ok := data.Methods["proxy"]; ok {
-			proxy.Name = "host"
-			proxy.Options = map[string]any{"output": []any{"host", "status", "proxy_address", "tls_connect", "tls_accept", "tls_issuer", "tls_subject", "description"}, "selectInterface": []any{"useip", "ip", "dns", "port"}}
-			data.Methods["proxy"] = proxy
-		}
-	}
 	for method, spec := range data.Methods {
 		if spec.ID == "" {
 			continue
@@ -188,20 +176,6 @@ func (p *Parameters) Replace(method string, target any, lookup map[string]map[st
 		}
 	}
 	return target
-}
-
-func removeStrings(values []string, targets ...string) []string {
-	remove := map[string]bool{}
-	for _, target := range targets {
-		remove[target] = true
-	}
-	out := values[:0]
-	for _, value := range values {
-		if !remove[value] {
-			out = append(out, value)
-		}
-	}
-	return out
 }
 
 const parameterJSON = `{"methods":{"hostgroup":{"id":"groupid","name":"name","options":{"output":"extend"}},"host":{"id":"hostid","name":"host","options":{"output":["hostid","host"],"selectTags":["tag","value"]}},"template":{"id":"templateid","name":"name","options":{"output":["templateid","name"]}},"user":{"id":"userid","name":"username","options":{"output":["username","roleid","userdirectoryid"],"getAccess":true,"selectUsrgrps":["name"],"selectMedias":"extend"}},"usergroup":{"id":"usrgrpid","name":"name","options":{"output":"extend","selectTagFilters":"extend","selectHostGroupRights":"extend","selectTemplateGroupRights":"extend"}},"usermacro":{"id":"globalmacroid","name":"macro","options":{"output":["macro","value","type"],"globalmacro":true,"filter":{"type":[0,2]}}},"mediatype":{"id":"mediatypeid","name":"name","options":{"output":["name"]}},"action":{"id":"actionid","name":"name","options":{"output":"extend","selectOperations":"extend","selectRecoveryOperations":"extend","selectFilter":"extend","search":{"conditiontype":[2]},"selectUpdateOperations":"extend"}},"maintenance":{"id":"maintenanceid","name":"name","options":{"selectHosts":"extend","selectTimeperiods":"extend","selectTags":"extend","selectHostGroups":"extend"}},"script":{"id":"scriptid","name":"name","options":{}},"valuemap":{"id":"valuemapid","name":"name","options":{"output":"extend","selectMappings":"extend"}},"proxy":{"id":"proxyid","name":"name","options":{"output":"extend"}},"drule":{"id":"druleid","name":"name","options":{"output":"extend","selectDChecks":"extend"}},"correlation":{"id":"correlationid","name":"name","options":{"output":"extend","selectOperations":"extend","selectFilter":"extend"}},"autoregistration":{"id":"","name":"","options":{}},"role":{"id":"roleid","name":"name","options":{"output":"extend","selectRules":"extend"}},"authentication":{"id":"","name":"","options":{}},"regexp":{"id":"regexpid","name":"name","options":{"output":["regexpid","name"],"selectExpressions":["expression","expression_type","exp_delimiter","case_sensitive"]}},"settings":{"id":"","name":"","options":{"output":"extend"}},"sla":{"id":"slaid","name":"name","options":{"output":"extend","selectSchedule":"extend","selectExcludedDowntimes":"extend","selectServiceTags":"extend"}},"service":{"id":"serviceid","name":"name","options":{"output":"extend","selectParents":["name"],"selectChildren":["name"],"selectStatusRules":"extend","selectProblemTags":"extend","selectTags":"extend"}},"templategroup":{"id":"groupid","name":"name","options":{"output":"extend"}},"userdirectory":{"id":"userdirectoryid","name":"name","options":{"output":"extend","selectProvisionMedia":"extend","selectProvisionGroups":"extend"}},"proxygroup":{"id":"proxy_groupid","name":"name","options":{"output":["proxy_groupid","name","failover_delay","min_online","description"]}},"mfa":{"id":"mfaid","name":"name","options":{"output":"extend"}},"connector":{"id":"connectorid","name":"name","options":{"output":"extend","selectTags":"extend"}}},"sections":{"GLOBAL":["autoregistration","settings","authentication"],"CONFIG_EXPORT":{"hostgroup":"host_groups","template":"templates","host":"hosts","trigger":"triggers","mediatype":"mediaTypes","templategroup":"template_groups"},"PRE":["usermacro","regexp","connector","proxygroup"],"MID":["script","proxy"],"POST":["action","maintenance","drule","correlation","role","service","sla","userdirectory","mfa"],"ACCOUNT":["usergroup","user"],"EXTEND":[]},"rules":{"hosts":{"createMissing":true,"updateExisting":true},"templateLinkage":{"createMissing":true,"deleteMissing":true},"templates":{"createMissing":true,"updateExisting":true},"items":{"createMissing":true,"updateExisting":true,"deleteMissing":true},"discoveryRules":{"createMissing":true,"updateExisting":true,"deleteMissing":true},"triggers":{"createMissing":true,"updateExisting":true,"deleteMissing":true},"valueMaps":{"createMissing":true,"updateExisting":true},"images":{"createMissing":false,"updateExisting":false},"maps":{"createMissing":false,"updateExisting":false},"graphs":{"createMissing":false,"updateExisting":false,"deleteMissing":false},"httptests":{"createMissing":false,"updateExisting":false,"deleteMissing":false},"mediaTypes":{"createMissing":true,"updateExisting":true},"templateDashboards":{"createMissing":false,"updateExisting":false,"deleteMissing":false},"host_groups":{"createMissing":true},"template_groups":{"createMissing":true}},"discard":{"host":["items","triggers","discovery_rules"],"action":["actionid","operationid","opcommand_hstid","opcommand_grpid"],"proxy":["interface","lastaccess","version","compatibility","state","auto_compress"],"drule":["nextcheck"],"role":["readonly","services.actions"],"service":["status","uuid","created_at","readonly"],"settings":["ha_failover_delay"],"sla":["service_tags","schedule","excluded_downtimes"]}}`

@@ -51,9 +51,6 @@ func Run(ctx context.Context, cfg *config.Config, logger *logx.Logger) error {
 			return fmt.Errorf("setVersionDataToStore: %w", err)
 		}
 	} else {
-		if err = engine.ChangePassword(ctx); err != nil {
-			return fmt.Errorf("changePassword: %w", err)
-		}
 		var direct *Engine
 		if cfg.StoreType == "direct" {
 			directCfg := cfg.DirectMaster()
@@ -63,8 +60,8 @@ func Run(ctx context.Context, cfg *config.Config, logger *logx.Logger) error {
 			}
 			defer direct.Close()
 		}
-		if err = engine.LoadReplicaData(ctx, direct); err != nil {
-			return fmt.Errorf("getDataFromStore: %w", err)
+		if err = engine.loadAndPrepareReplica(ctx, direct); err != nil {
+			return err
 		}
 		if err = engine.ApplyGlobalSettings(ctx); err != nil {
 			return fmt.Errorf("setGlobalsettingsToZabbix: %w", err)
@@ -114,6 +111,27 @@ func Run(ctx context.Context, cfg *config.Config, logger *logx.Logger) error {
 		return fmt.Errorf("setVersionCode: %w", err)
 	}
 	logger.Infof("[FINISH] %s", model.ZabbixTime())
+	return nil
+}
+
+func (e *Engine) loadAndPrepareReplica(ctx context.Context, direct *Engine) error {
+	if err := e.LoadReplicaData(ctx, direct); err != nil {
+		return fmt.Errorf("getDataFromStore: %w", err)
+	}
+	if e.Config.Initialize {
+		var err error
+		if e.Config.InitializeFull {
+			err = e.initializeFull(ctx)
+		} else {
+			err = e.initializeReplica(ctx)
+		}
+		if err != nil {
+			return fmt.Errorf("initializeReplica: %w", err)
+		}
+	}
+	if err := e.ChangePassword(ctx); err != nil {
+		return fmt.Errorf("changePassword: %w", err)
+	}
 	return nil
 }
 

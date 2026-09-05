@@ -61,12 +61,12 @@ func New(ctx context.Context, cfg *config.Config, logger *logx.Logger) (*Engine,
 	if err != nil {
 		return nil, err
 	}
-	api.SetVersion(version)
-	if err := api.Authenticate(ctx, cfg.Token, cfg.User, cfg.Password); err != nil {
-		return nil, err
-	}
 	params, err := NewParameters(version)
 	if err != nil {
+		return nil, err
+	}
+	api.SetVersion(version)
+	if err := api.Authenticate(ctx, cfg.Token, cfg.User, cfg.Password); err != nil {
 		return nil, err
 	}
 	engine := &Engine{Config: cfg, Log: logger, API: api, Version: version, Params: params, Local: map[string]map[string]*LocalItem{}, IDReplace: map[string]map[string]any{}}
@@ -211,8 +211,7 @@ func (e *Engine) ensureHostUUIDs(ctx context.Context) error {
 }
 
 func (e *Engine) prepareReplica(ctx context.Context) error {
-	// Direct mode builds the source dataset after the target is prepared.
-	// Version compatibility is checked once that dataset has been loaded.
+	// Preparation is read-only. Initialization must wait for LoadReplicaData.
 	if e.Config.StoreType != "direct" {
 		version, err := store.Latest(e.Versions, e.Config.TargetVersion)
 		if err != nil {
@@ -223,12 +222,6 @@ func (e *Engine) prepareReplica(ctx context.Context) error {
 		}
 		e.NewVersion = version
 		e.Log.Infof("Cloning Version: %s", version.VersionID)
-	}
-	if e.Config.Initialize {
-		if e.Config.InitializeFull {
-			return e.initializeFull(ctx)
-		}
-		return e.initializeReplica(ctx)
 	}
 	return nil
 }

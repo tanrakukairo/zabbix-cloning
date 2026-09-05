@@ -1,11 +1,31 @@
 package clone
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/tanrakukairo/zabbix-cloning/internal/model"
 	"github.com/tanrakukairo/zabbix-cloning/internal/zabbix"
 )
+
+func TestParametersRequireZabbix70(t *testing.T) {
+	for _, value := range []string{"5.0.0", "6.0.0", "6.2.0", "6.4.0"} {
+		if _, err := NewParameters(zabbix.ParseVersion(value)); err == nil || !strings.Contains(err.Error(), "7.0") {
+			t.Fatalf("version %s: expected minimum version error, got %v", value, err)
+		}
+	}
+	for _, value := range []string{"7.0.0", "7.2.0", "7.4.0"} {
+		params, err := NewParameters(zabbix.ParseVersion(value))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, method := range []string{"templategroup", "userdirectory", "proxygroup", "connector", "mfa"} {
+			if _, ok := params.Methods[method]; !ok {
+				t.Fatalf("%s missing %s", value, method)
+			}
+		}
+	}
+}
 
 func TestMethodOutputIncludesObjectID(t *testing.T) {
 	parameters, err := NewParameters(zabbix.ParseVersion("7.4.12"))

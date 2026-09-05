@@ -4,7 +4,7 @@
 
 ```text
 zabbix-cloning/
-├── go-lang/                 # Primary Go implementation (Zabbix 6.0+)
+├── go-lang/                 # Primary Go implementation (Zabbix 7.0+)
 │   ├── cmd/
 │   │   ├── zc/              # Clone CLI
 │   │   ├── view/            # Datastore viewer
@@ -54,10 +54,10 @@ CLI/config
 
 ## Compatibility boundary
 
-The Go implementation supports Zabbix 6.0 and newer. The Python prototype is
+The Go implementation supports Zabbix 7.0 and newer. The Python prototype is
 kept for Zabbix 4.x and 5.x because those versions require direct PostgreSQL or
 MySQL operations that are intentionally outside the Go implementation.
 
-File, Redis and DynamoDB payloads remain bidirectionally compatible. Existing
-Python-generated versions can therefore be consumed by the Go CLI without a
-migration step.
+File, Redis and DynamoDB payload formats remain compatible. The Go CLI only
+applies datasets whose master Zabbix version is 7.0 or newer; older datasets
+are rejected before initialization.

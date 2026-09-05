@@ -106,7 +106,14 @@ func (e *Engine) prepareMasterItem(method string, data model.Object) bool {
 			return false
 		}
 		data["hostgroups"] = relationNames(data["hostgroups"])
-		data["hosts"] = relationNames(data["hosts"])
+		// References must use the technical name used by host.get and host export.
+		hosts := make([]any, 0)
+		for _, host := range objects(data["hosts"]) {
+			if name := firstString(model.String(host["host"]), model.String(host["name"])); name != "" {
+				hosts = append(hosts, name)
+			}
+		}
+		data["hosts"] = hosts
 		if len(toAnyList(data["hostgroups"])) == 0 {
 			delete(data, "hostgroups")
 		}

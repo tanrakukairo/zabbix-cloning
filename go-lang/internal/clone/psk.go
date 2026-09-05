@@ -94,6 +94,7 @@ func (e *Engine) applyNamedPSK(ctx context.Context, method string, configured ma
 		item := existing[name]
 		if item == nil {
 			counts.Missing++
+			e.Log.Warningf("PSK %s/%s: SKIP, missing target", method, name)
 			continue
 		}
 		params, update := pskUpdateParameters(spec.ID, item[spec.ID], item["tls_accept"], configured[name])

@@ -13,6 +13,9 @@ import (
 
 func (e *Engine) LoadReplicaData(ctx context.Context, direct *Engine) error {
 	if direct != nil {
+		if direct.Version.Major < 7 {
+			return fmt.Errorf("direct master requires Zabbix 7.0 or newer (got %s)", direct.Version.String())
+		}
 		if err := direct.FirstProcess(ctx); err != nil {
 			return err
 		}
@@ -31,6 +34,12 @@ func (e *Engine) LoadReplicaData(ctx context.Context, direct *Engine) error {
 	version, err := store.Latest(e.Versions, e.Config.TargetVersion)
 	if err != nil {
 		return err
+	}
+	if version.MasterVersion < 7 {
+		return fmt.Errorf("store data requires Zabbix 7.0 or newer (got %.1f)", version.MasterVersion)
+	}
+	if e.Version.Float() < version.MasterVersion {
+		return fmt.Errorf("target Zabbix %s is older than store data %.1f", e.Version.String(), version.MasterVersion)
 	}
 	dataset, err := e.Store.Load(ctx, version)
 	if err != nil {
@@ -139,12 +148,18 @@ func (e *Engine) ApplyAPISection(ctx context.Context, section string) error {
 	for _, method := range methods {
 		items := e.Dataset[method]
 		desired := map[string]bool{}
-		created, updated, deleted := 0, 0, 0
+		created, updated, deleted, skipped := 0, 0, 0, 0
 		for _, item := range items {
 			desired[item.Name] = true
+			if missing := e.missingHostReferences(method, item.Data); len(missing) > 0 {
+				e.Log.Warningf("API Execute[%s] %s: SKIP, missing target hosts: %s", method, item.Name, strings.Join(missing, ", "))
+				skipped++
+				continue
+			}
 			data := marshalObject(e.ConvertIDs(model.CloneObject(item.Data), false))
 			removeDiscard(data, e.Params.Discard[method])
 			if !e.prepareSpecialAPIItem(method, item.Name, data) {
+				skipped++
 				continue
 			}
 			callMethod := method + ".create"
@@ -185,7 +200,7 @@ func (e *Engine) ApplyAPISection(ctx context.Context, section string) error {
 				deleted++
 			}
 		}
-		e.Log.Infof("API Execute[%s]: %d (create:%d/update:%d/delete:%d)", method, created+updated+deleted, created, updated, deleted)
+		e.Log.Infof("API Execute[%s]: %d (create:%d/update:%d/delete:%d/skip:%d)", method, created+updated+deleted+skipped, created, updated, deleted, skipped)
 		if !e.Config.DryRun {
 			time.Sleep(time.Second)
 		}
@@ -528,7 +543,7 @@ func normalizeMaintenancePeriods(data model.Object) bool {
 func relationValues(value any) []string {
 	result := make([]string, 0)
 	for _, item := range toAnyList(value) {
-		if object, ok := item.(map[string]any); ok {
+		if object := objectMap(item); len(object) > 0 {
 			result = append(result, model.String(object["name"]))
 		} else {
 			result = append(result, model.String(item))

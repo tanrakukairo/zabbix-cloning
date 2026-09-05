@@ -169,7 +169,7 @@ func normalizeHostStatus(value any) int {
 func (e *Engine) normalizeInterface(hostIf model.Object) {
 	delete(hostIf, "interface_ref")
 	ifType := model.String(hostIf["type"])
-	types := map[string]int{"AGENT": 1, "SNMP": 2, "IPMI": 3, "JMX": 4}
+	types := map[string]int{"AGENT": 1, "ZABBIX": 1, "SNMP": 2, "IPMI": 3, "JMX": 4}
 	if ifType == "" {
 		hostIf["type"] = types["AGENT"]
 	} else if value, ok := types[ifType]; ok {
@@ -194,15 +194,33 @@ func (e *Engine) normalizeInterface(hostIf model.Object) {
 			delete(hostIf, "dns")
 		}
 	}
-	delete(hostIf, "bulk")
 	if model.Int(hostIf["type"]) == 2 {
-		details := objectMap(hostIf["details"])
-		version := stringsUpper(model.String(details["version"]))
-		versions := map[string]int{"SNMPV1": 1, "SNMPV2": 2, "SNMPV3": 3}
-		if versions[version] == 0 {
-			versions[version] = 2
+		details := model.CloneObject(objectMap(hostIf["details"]))
+		normalizeSNMPEnum(details, "version", map[string]int{"SNMPV1": 1, "SNMP_V1": 1, "SNMPV2": 2, "SNMP_V2C": 2, "SNMPV3": 3, "SNMP_V3": 3})
+		if model.String(details["version"]) == "" {
+			details["version"] = 2
 		}
-		hostIf["details"] = model.Object{"version": versions[version], "community": firstString(model.String(details["community"]), "{$SNMP_COMMUNITY}")}
+		if bulk, ok := hostIf["bulk"]; ok {
+			details["bulk"] = yesNo(bulk, 1)
+		} else if bulk, ok := details["bulk"]; ok {
+			details["bulk"] = yesNo(bulk, 1)
+		}
+		if model.Int(details["version"]) == 3 {
+			delete(details, "community")
+			normalizeSNMPEnum(details, "securitylevel", map[string]int{"NOAUTHNOPRIV": 0, "AUTHNOPRIV": 1, "AUTHPRIV": 2})
+			normalizeSNMPEnum(details, "authprotocol", map[string]int{"MD5": 0, "SHA": 1, "SHA1": 1, "SHA224": 2, "SHA256": 3, "SHA384": 4, "SHA512": 5})
+			normalizeSNMPEnum(details, "privprotocol", map[string]int{"DES": 0, "AES": 1, "AES128": 1, "AES192": 2, "AES256": 3, "AES192C": 4, "AES256C": 5})
+		} else {
+			details["community"] = firstString(model.String(details["community"]), "{$SNMP_COMMUNITY}")
+		}
+		hostIf["details"] = details
+	}
+	delete(hostIf, "bulk")
+}
+
+func normalizeSNMPEnum(data model.Object, key string, values map[string]int) {
+	if value, ok := values[stringsUpper(model.String(data[key]))]; ok {
+		data[key] = value
 	}
 }
 

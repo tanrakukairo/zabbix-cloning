@@ -90,6 +90,7 @@ func (e *Engine) applySecretUserMacros(ctx context.Context) error {
 	for _, macro := range macros {
 		host := e.Local["host"][macro.Host]
 		if host == nil || host.ID == "" {
+			e.Log.Warningf("Secret UserMacro %s/%s: SKIP, missing target host", macro.Host, macro.Macro)
 			continue
 		}
 		targets = append(targets, macro)
