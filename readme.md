@@ -4,7 +4,7 @@ Zabbixの監視設定を、設定元のZabbixから監視を実行するZabbix�
 完全なバックアップではなく、複数Zabbix間で監視設定を展開・同期する用途を対象としています。
 Zabbixの設定を植木鉢に見立て、鉢替えや株分けをするイメージのツールです。
 
-Go版はZabbix 7.0から7.4までに対応します。Zabbix 7.0未満を扱う場合は
+Go版はZabbix 7.0から8.0 LTSまでに対応します。Zabbix 7.0未満を扱う場合は
 [Python旧版](prototype/readme_prototype.md)を使用してください。
 
 ## 主な機能
@@ -26,10 +26,14 @@ masterで実行すると、必要に応じて次の情報をZabbixへ追加し�
 ## 対応環境
 
 - Go 1.23以降
-- Zabbix 7.0、7.2、7.4
+- Zabbix 7.0、7.2、7.4、8.0 LTS
 - WindowsまたはLinux
 
 開発版は現在の対応範囲に含みません。
+
+Zabbix 8.0 LTS向けのAPI互換修正と、7系のインターフェイス切替不具合の修正を含みます。
+同一・上位バージョンへの実機検証の結果、利用条件、新機能への対応範囲は
+[8.0互換性の確認記録](documents/zabbix80-compatibility.md)を参照してください。
 
 Zabbix 7.0未満への接続、および7.0未満で生成したストアデータの適用は拒否します。
 初期化は、復元元データの取得・解析・バージョン検証が成功した後に実行します。
@@ -407,6 +411,10 @@ Zabbix 7.0では、`settings`に
 `simple_check`、`snmp_agent`、`external_check`、`db_monitor`、`http_agent`、
 `ssh_agent`、`telnet_agent`、`script`、`browser`に対応します。
 
+Zabbix 8.0では、`timeout.telemetry_query`（または `timeout_telemetry_query`）、
+`device_link_timeout`、`apm_global_db`、`default_theme` の `dark-blue-theme` も指定できます。
+APMデータソースの接続パスワードは、複製先の `zc.secret` に `settings.apm_global_db.password` として指定できます。
+
 `zc.secret`に記載する主な秘密情報:
 
 | キー | 内容 |
@@ -417,9 +425,14 @@ Zabbix 7.0では、`settings`に
 | `store_connect.direct_token` | direct接続先のAPIトークン |
 | `enable_user` | 複製するユーザーのパスワード |
 | `mfa_client_secret` | Duo MFAのclient secret |
+| `saml_certificates` | 8.0のDB保存方式で使う `idp_certificate`、`sp_private_key`、`sp_certificate` のPEM文字列 |
 | `secret_globalmacro` | secret型グローバルマクロの名前と値 |
 | `secret_usermacro` | secret型ホストマクロのホスト名、マクロ名、値 |
 | `psk` | proxy、host、自動登録へ適用するPSK identityとPSK |
+
+SAML証明書のDB保存方式では、複製先のフロントエンドで `$SSO['CERT_STORAGE'] = 'database'` を設定します。
+ファイル保存方式では複製先のフロントエンドに証明書と秘密鍵を配置してください。
+詳細は [Zabbix Cloningが使用するAPI](documents/API_Use_in_zc.md) を参照してください。
 
 masterデータ作成時、secret text型のグローバル、ホスト、テンプレートマクロは保存対象から
 除外します。Vault secret型は参照値とtypeを保存し、replicaへ同じVault secret型で反映します。
@@ -472,6 +485,10 @@ DB 0/DB 1に分割していた旧Redis形式は自動移行されないため、
 
 ## 検証状況
 
+2026-11-07に、t2devの隔離環境で7.0.29・7.2.15・7.4.14・8.0.0を使用した
+fileストアの互換性試験を追加しました。同一・上位バージョンへの10組が対象です。
+試験手順と詳細結果は[検証記録](documents/zabbix80-compatibility.md)を参照してください。
+
 Zabbix 7.0、7.2、7.4実機で次を確認しています。
 
 - masterのfile、Redis、DynamoDB保存
@@ -508,7 +525,7 @@ Zabbix 7.0、7.2、7.4実機で次を確認しています。
 * proxy group
 * authentication (Not tested)
 * LDAP authentication setting (Not tested)
-* SAML authentication setting (Not tested)
+* SAML authentication settings（8.0で設定の複製を確認。外部IdPでのログインは未検証）
 * MFA authentication setting (Not tested)
 
 

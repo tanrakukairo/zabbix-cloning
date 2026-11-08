@@ -8,6 +8,31 @@ import (
 	"github.com/tanrakukairo/zabbix-cloning/internal/zabbix"
 )
 
+func TestSettingsExcludeServerIdentityOnExportAndApply(t *testing.T) {
+	engine := &Engine{Config: &config.Config{}, Version: zabbix.ParseVersion("8.0.0")}
+	fixture := model.Object{"serverid": "source-server-id", "ha_failover_delay": "1m", "timeout_telemetry_query": "3s", "default_lang": "en_US"}
+	exported := model.CloneObject(fixture)
+	if !engine.prepareMasterItem("settings", exported) {
+		t.Fatal("settings skipped")
+	}
+	// Also accept stores produced before the export-side fix.
+	applied, err := engine.prepareSettingsUpdate(model.CloneObject(fixture))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, data := range []model.Object{exported, applied} {
+		if _, exists := data["serverid"]; exists {
+			t.Fatalf("server identity retained: %#v", data)
+		}
+		if _, exists := data["ha_failover_delay"]; exists {
+			t.Fatalf("read-only HA setting retained: %#v", data)
+		}
+		if data["timeout_telemetry_query"] != "3s" || data["default_lang"] != "en_US" {
+			t.Fatalf("writable settings lost: %#v", data)
+		}
+	}
+}
+
 func TestNormalizeSettingsConfigSupportsZabbix70(t *testing.T) {
 	settings, err := normalizeSettingsConfig(map[string]any{
 		"default_lang":   "ja_JP",
@@ -31,6 +56,40 @@ func TestNormalizeSettingsConfigSupportsZabbix70(t *testing.T) {
 	for key, value := range want {
 		if model.String(settings[key]) != model.String(value) {
 			t.Fatalf("unexpected %s: got=%v want=%v", key, settings[key], value)
+		}
+	}
+}
+
+func TestSettings80OverridesAndCredentials(t *testing.T) {
+	overrides := model.Object{
+		"device_link_timeout": "30s",
+		"timeout":             model.Object{"telemetry_query": "15s"},
+		"apm_global_db":       model.Object{"status": 1, "password": "target-secret"},
+	}
+	engine := &Engine{
+		Config:  &config.Config{Raw: map[string]any{"settings": overrides}},
+		Version: zabbix.ParseVersion("8.0.0"),
+	}
+	data := model.Object{"apm_global_db": model.Object{"status": 1, "password": "source-secret"}}
+	engine.prepareMasterItem("settings", data)
+	if _, exists := objectMap(data["apm_global_db"])["password"]; exists {
+		t.Fatal("source password retained in the snapshot")
+	}
+	applied, err := engine.prepareSettingsUpdate(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if applied["timeout_telemetry_query"] != "15s" || applied["device_link_timeout"] != "30s" ||
+		objectMap(applied["apm_global_db"])["password"] != "target-secret" {
+		t.Fatal("8.0 settings overrides were not applied")
+	}
+	for _, override := range []model.Object{
+		{"device_link_timeout": "30s"}, {"timeout_telemetry_query": "15s"},
+		{"timeout": overrides["timeout"]}, {"apm_global_db": overrides["apm_global_db"]},
+		{"default_theme": "dark-blue-theme"},
+	} {
+		if _, err := normalizeSettingsConfig(override, zabbix.ParseVersion("7.4.14")); err == nil {
+			t.Fatal("8.0 override accepted for 7.4")
 		}
 	}
 }
@@ -81,7 +140,7 @@ func TestReplaceSettingsIDs(t *testing.T) {
 
 func TestPrepareSettingsUpdateDefersMissingGroupReferences(t *testing.T) {
 	engine := &Engine{
-		Config: &config.Config{Raw: map[string]any{}},
+		Config:  &config.Config{Raw: map[string]any{}},
 		Version: zabbix.ParseVersion("7.0.21"),
 		IDReplace: map[string]map[string]any{
 			"hostgroup": {"2": "Zabbix servers", "Zabbix servers": "2"},

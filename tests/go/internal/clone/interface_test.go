@@ -84,7 +84,7 @@ func TestApplyHostInterfacesRunsDifferentHostsInParallel(t *testing.T) {
 				"interfaceid": fmt.Sprintf("if-%s", hostID), "type": "1", "main": "1",
 				"useip": "1", "ip": "10.0.0.1", "dns": "", "port": "10050", "details": model.Object{},
 			}}
-		case "hostinterface.update":
+		case "host.update":
 			active := updateActive.Add(1)
 			setAtomicMaximum(&updateMax, active)
 			time.Sleep(75 * time.Millisecond)
@@ -113,7 +113,7 @@ func TestApplyHostInterfacesRunsDifferentHostsInParallel(t *testing.T) {
 		t.Fatalf("hostinterface.get maximum concurrency = %d, want at least 2", getMax.Load())
 	}
 	if updateMax.Load() < 2 {
-		t.Fatalf("hostinterface.update maximum concurrency = %d, want at least 2", updateMax.Load())
+		t.Fatalf("host.update maximum concurrency = %d, want at least 2", updateMax.Load())
 	}
 }
 
@@ -123,5 +123,55 @@ func setAtomicMaximum(maximum *atomic.Int32, value int32) {
 		if value <= current || maximum.CompareAndSwap(current, value) {
 			return
 		}
+	}
+}
+
+func TestDefaultInterfaceSwitchUsesOneRequestAndPreservesItemInterface(t *testing.T) {
+	existing := []model.Object{
+		{"interfaceid": "10", "type": 1, "main": 1, "useip": 1, "ip": "192.0.2.10", "dns": "", "port": "10050"},
+		{"interfaceid": "20", "type": 2, "main": 1, "useip": 1, "ip": "192.0.2.11", "dns": "", "port": "161"},
+	}
+	updates := []model.Object{
+		{"type": 1, "main": 0, "useip": 1, "ip": "192.0.2.30", "dns": "", "port": "10050"},
+		{"type": 1, "main": 1, "useip": 1, "ip": "192.0.2.31", "dns": "", "port": "10050"},
+	}
+	plans, deletes := buildInterfacePlans(existing, updates)
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body model.Object
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Error(err)
+			return
+		}
+		calls++
+		if body["method"] != "host.update" {
+			t.Errorf("default switch used separate mutation: %v", body["method"])
+		}
+		rows := objects(objectMap(body["params"])["interfaces"])
+		if len(rows) != 2 {
+			t.Errorf("unexpected interfaces: %#v", rows)
+		} else {
+			if model.String(rows[0]["interfaceid"]) != "10" || model.Int(rows[0]["main"]) != 0 || model.String(rows[0]["ip"]) != "192.0.2.30" {
+				t.Errorf("existing item interface not retained: %#v", rows[0])
+			}
+			if rows[1]["interfaceid"] != nil || model.Int(rows[1]["main"]) != 1 {
+				t.Errorf("new default not included in same request: %#v", rows[1])
+			}
+		}
+		_ = json.NewEncoder(w).Encode(model.Object{"jsonrpc": "2.0", "id": body["id"], "result": model.Object{"hostids": []string{"100"}}})
+	}))
+	defer server.Close()
+	api, err := zabbix.New(server.URL, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	engine := &Engine{API: api}
+	engine.replaceHostInterfaces(context.Background(), hostInterfaceWork{Host: hostPlan{ID: "100"}, Existing: existing, Plans: plans, Deletes: deletes}, func(action, target string, err error) {
+		if err != nil {
+			t.Errorf("%s %s: %v", action, target, err)
+		}
+	})
+	if calls != 1 {
+		t.Fatalf("got %d requests, want one atomic default switch", calls)
 	}
 }

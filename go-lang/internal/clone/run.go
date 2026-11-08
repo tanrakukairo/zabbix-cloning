@@ -94,6 +94,9 @@ func Run(ctx context.Context, cfg *config.Config, logger *logx.Logger) error {
 				return fmt.Errorf("setApiToZabbix %s: %w", section, err)
 			}
 		}
+		if err = engine.ApplySAMLDirectory(ctx); err != nil {
+			return fmt.Errorf("apply SAML user directory: %w", err)
+		}
 		if err = engine.ApplyDeferredSettings(ctx); err != nil {
 			return fmt.Errorf("setGlobalsettingsToZabbix deferred: %w", err)
 		}

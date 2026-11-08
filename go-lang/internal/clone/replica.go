@@ -56,7 +56,7 @@ func (e *Engine) ApplyGlobalSettings(ctx context.Context) error {
 			continue
 		}
 		items := e.Dataset[method]
-		if len(items) == 0 {
+		if len(items) == 0 && (method != "settings" || e.Config.Raw["settings"] == nil) {
 			continue
 		}
 		data := mergeStoreItems(items)
@@ -66,6 +66,9 @@ func (e *Engine) ApplyGlobalSettings(ctx context.Context) error {
 			data, err = e.prepareSettingsUpdate(data)
 			if err != nil {
 				return err
+			}
+			if len(data) == 0 {
+				continue
 			}
 		}
 		if _, err := e.API.Call(ctx, method+".update", data); err != nil {
@@ -127,10 +130,16 @@ func (e *Engine) ApplyAuthentication(ctx context.Context) error {
 	}
 	if model.Int(data["ldap_auth_enabled"]) == 0 {
 		delete(data, "ldap_auth_enabled")
-		delete(data, "disabled_usrgrpid")
+		if model.Int(data["saml_jit_status"]) == 0 {
+			delete(data, "disabled_usrgrpid")
+		}
 	}
-	if model.Int(data["saml_auth_enabled"]) == 0 {
-		delete(data, "saml_auth_enabled")
+	if name := model.String(objectMap(data["disabled_usrgrpid"])["name"]); name != "" {
+		group := e.Local["usergroup"][name]
+		if group == nil {
+			return fmt.Errorf("authentication references unknown target disabled user group %q", name)
+		}
+		data["disabled_usrgrpid"] = group.ID
 	}
 	if _, err := e.API.Call(ctx, "authentication.update", data); err != nil {
 		return fmt.Errorf("authentication.update: %w", err)
@@ -150,6 +159,9 @@ func (e *Engine) ApplyAPISection(ctx context.Context, section string) error {
 		desired := map[string]bool{}
 		created, updated, deleted, skipped := 0, 0, 0, 0
 		for _, item := range items {
+			if method == "userdirectory" && isSAMLDirectory(item.Data) {
+				continue
+			}
 			desired[item.Name] = true
 			if missing := e.missingHostReferences(method, item.Data); len(missing) > 0 {
 				e.Log.Warningf("API Execute[%s] %s: SKIP, missing target hosts: %s", method, item.Name, strings.Join(missing, ", "))
@@ -158,6 +170,11 @@ func (e *Engine) ApplyAPISection(ctx context.Context, section string) error {
 			}
 			data := marshalObject(e.ConvertIDs(model.CloneObject(item.Data), false))
 			removeDiscard(data, e.Params.Discard[method])
+			if method == "usergroup" {
+				if err := e.resolveProxyPermissions(data); err != nil {
+					return fmt.Errorf("usergroup %q: %w", item.Name, err)
+				}
+			}
 			if !e.prepareSpecialAPIItem(method, item.Name, data) {
 				skipped++
 				continue
@@ -186,7 +203,8 @@ func (e *Engine) ApplyAPISection(ctx context.Context, section string) error {
 		}
 		if e.Config.DeleteAPI {
 			for name, local := range e.Local[method] {
-				if desired[name] || protectedAPIObject(method, name, local) {
+				if desired[name] || protectedAPIObject(method, name, local) ||
+					method == "userdirectory" && isSAMLDirectory(local.Data) {
 					continue
 				}
 				id := e.Params.Methods[method].ID
@@ -224,6 +242,11 @@ func (e *Engine) prepareSpecialAPIItem(method, name string, data model.Object) b
 	case "maintenance":
 		if !e.normalizeMaintenance(data) {
 			return false
+		}
+	case "proxy":
+		if apm := objectMap(data["apm"]); len(apm) > 0 && model.Int(apm["data_collection_status"]) == 0 {
+			delete(apm, "max_messages_per_second")
+			delete(apm, "additional_resource_attributes")
 		}
 	case "regexp":
 		for _, expression := range objects(data["expressions"]) {
@@ -270,6 +293,14 @@ func (e *Engine) prepareSpecialAPIItem(method, name string, data model.Object) b
 		}
 	case "role":
 		delete(data, "readonly")
+		// Before 8.0 an empty allow list granted every API method. Preserve
+		// that meaning only for explicitly enabled roles from older stores.
+		if e.Version.AtLeast(8, 0) && e.NewVersion.MasterVersion >= 7 && e.NewVersion.MasterVersion < 8 {
+			rules := objectMap(data["rules"])
+			if api, present := rules["api"]; present && model.Int(rules["api.access"]) == 1 && model.Int(rules["api.mode"]) == 1 && len(toAnyList(api)) == 0 {
+				rules["api.mode"] = 0
+			}
+		}
 	case "mfa":
 		if model.Int(data["type"]) == 2 {
 			secrets := objectMap(e.Config.Raw["mfa_client_secret"])
@@ -291,7 +322,7 @@ func (e *Engine) normalizeAction(name string, data model.Object) bool {
 	}
 	filter := objectMap(data["filter"])
 	for _, condition := range objects(filter["conditions"]) {
-		method := map[int]string{0: "hostgroup", 1: "host", 13: "template"}[model.Int(condition["conditiontype"])]
+		method := map[int]string{0: "hostgroup", 1: "host", 13: "template", 29: "proxygroup"}[model.Int(condition["conditiontype"])]
 		if method != "" && condition["value"] != nil {
 			if !e.IsReplica() && e.IDReplace[method][model.String(condition["value"])] == nil {
 				return false

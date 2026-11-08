@@ -14,7 +14,7 @@ func TestParametersRequireZabbix70(t *testing.T) {
 			t.Fatalf("version %s: expected minimum version error, got %v", value, err)
 		}
 	}
-	for _, value := range []string{"7.0.0", "7.2.0", "7.4.0"} {
+	for _, value := range []string{"7.0.0", "7.2.0", "7.4.0", "8.0.0"} {
 		params, err := NewParameters(zabbix.ParseVersion(value))
 		if err != nil {
 			t.Fatal(err)

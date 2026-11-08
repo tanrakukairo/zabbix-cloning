@@ -57,6 +57,16 @@ func NewParameters(version zabbix.Version) (*Parameters, error) {
 	user := data.Methods["user"]
 	user.Options["selectUsrgrps"] = []any{"usrgrpid", "name"}
 	data.Methods["user"] = user
+	if version.AtLeast(8, 0) {
+		regexp := data.Methods["regexp"]
+		regexp.Options["output"] = append(regexp.Options["output"].([]any), "description")
+		data.Methods["regexp"] = regexp
+		data.Methods["proxy"].Options["selectApm"] = "extend"
+		groupOptions := data.Methods["usergroup"].Options
+		groupOptions["selectProxies"] = []any{"proxyid"}
+		groupOptions["selectProxyGroups"] = []any{"proxy_groupid"}
+		groupOptions["selectApmFilters"] = []any{"key", "value", "signal_type"}
+	}
 	for method, spec := range data.Methods {
 		if spec.ID == "" {
 			continue

@@ -78,6 +78,7 @@ func TestVersionSpecificAuthenticationTransport(t *testing.T) {
 	}{
 		{name: "7.0 body auth", version: "7.0.21"},
 		{name: "7.2 bearer auth", version: "7.2.15", wantHeader: true},
+		{name: "8.0 bearer auth", version: "8.0.0", wantHeader: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {

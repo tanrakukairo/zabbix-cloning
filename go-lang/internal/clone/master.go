@@ -29,6 +29,18 @@ func (e *Engine) CreateMasterData(ctx context.Context) error {
 				continue
 			}
 			data := model.CloneObject(item.Data)
+			if method == "usergroup" {
+				if err := e.storeProxyPermissions(data); err != nil {
+					return fmt.Errorf("usergroup %q: %w", item.Name, err)
+				}
+			}
+			if id := model.String(data["disabled_usrgrpid"]); method == "authentication" && id != "" && id != "0" {
+				name := model.String(e.IDReplace["usergroup"][id])
+				if group := e.Local["usergroup"][name]; group == nil || group.ID != id {
+					return fmt.Errorf("authentication references unknown disabled user group ID %q", id)
+				}
+				data["disabled_usrgrpid"] = model.Object{"name": name}
+			}
 			if contains(append(append(append(e.Params.Pre, e.Params.Mid...), e.Params.Post...), e.Params.Account...), method) {
 				data = marshalObject(e.ConvertIDs(data, true))
 			}
@@ -75,7 +87,13 @@ func (e *Engine) prepareMasterItem(method string, data model.Object) bool {
 	case "host", "template":
 		filterExportMacros(data)
 	case "settings":
+		discardReadOnlySettings(data)
+		delete(objectMap(data["apm_global_db"]), "password")
 		e.replaceSettingsIDs(data, true)
+	case "userdirectory":
+		if isSAMLDirectory(data) {
+			stripSAMLCertificates(data)
+		}
 	case "mediatype":
 		if mediaTypeHasEmptyNormalPassword(data) {
 			return false
@@ -84,7 +102,7 @@ func (e *Engine) prepareMasterItem(method string, data model.Object) bool {
 		normalizeActionFields(data, false)
 		filter := objectMap(data["filter"])
 		for _, condition := range objects(filter["conditions"]) {
-			target := map[int]string{0: "hostgroup", 1: "host", 13: "template"}[model.Int(condition["conditiontype"])]
+			target := map[int]string{0: "hostgroup", 1: "host", 13: "template", 29: "proxygroup"}[model.Int(condition["conditiontype"])]
 			if target != "" && condition["value"] != nil {
 				condition["value"] = e.Params.Replace(target, condition["value"], e.IDReplace)
 			}

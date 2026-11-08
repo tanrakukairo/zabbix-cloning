@@ -28,6 +28,8 @@ var settingsTimeoutTargets = makeStringSet(`
 	zabbix_agent simple_check snmp_agent external_check db_monitor http_agent ssh_agent telnet_agent script browser
 `)
 
+var settings80Properties = makeStringSet("timeout_telemetry_query apm_global_db device_link_timeout")
+
 var (
 	settingsColor     = regexp.MustCompile(`^[0-9A-Fa-f]{6}$`)
 	settingsNumericID = regexp.MustCompile(`^[0-9]+$`)
@@ -38,12 +40,20 @@ func (e *Engine) prepareSettingsUpdate(data model.Object) (model.Object, error) 
 	if err != nil {
 		return nil, err
 	}
+	delete(objectMap(data["apm_global_db"]), "password")
 	for key, value := range overrides {
 		data[key] = value
 	}
-	delete(data, "ha_failover_delay")
+	discardReadOnlySettings(data)
 	e.deferredSettings = e.resolveTargetSettingsIDs(data)
 	return data, nil
+}
+
+func discardReadOnlySettings(data model.Object) {
+	delete(data, "ha_failover_delay")
+	// Returned by settings.get in 8.0, but not accepted by settings.update.
+	// Each server must retain its own identity.
+	delete(data, "serverid")
 }
 
 func (e *Engine) resolveTargetSettingsIDs(data model.Object) model.Object {
@@ -109,18 +119,26 @@ func normalizeSettingsConfig(value any, version zabbix.Version) (model.Object, e
 	if err := expandSeveritySettings(result, settings["severity"]); err != nil {
 		return nil, err
 	}
-	if err := expandTimeoutSettings(result, settings["timeout"]); err != nil {
+	if err := expandTimeoutSettings(result, settings["timeout"], version); err != nil {
 		return nil, err
 	}
 	for _, key := range sortedKeys(settings) {
 		if key == "severity" || key == "timeout" {
 			continue
 		}
-		if !settings70Properties[key] {
-			return nil, fmt.Errorf("settings.%s is not a Zabbix 7.0 settings property", key)
+		if !settings70Properties[key] && !(version.AtLeast(8, 0) && settings80Properties[key]) {
+			return nil, fmt.Errorf("settings.%s is not supported by Zabbix %s", key, version.String())
 		}
 		if key == "ha_failover_delay" {
 			return nil, fmt.Errorf("settings.ha_failover_delay is read-only")
+		}
+		if key == "default_theme" && model.String(settings[key]) == "dark-blue-theme" && !version.AtLeast(8, 0) {
+			return nil, fmt.Errorf("settings.default_theme dark-blue-theme requires Zabbix 8.0 or later")
+		}
+		if key == "apm_global_db" {
+			if _, err := settingsObject(settings[key], "settings.apm_global_db"); err != nil {
+				return nil, err
+			}
 		}
 		result[key] = settings[key]
 	}
@@ -156,7 +174,7 @@ func expandSeveritySettings(result model.Object, value any) error {
 	return nil
 }
 
-func expandTimeoutSettings(result model.Object, value any) error {
+func expandTimeoutSettings(result model.Object, value any, version zabbix.Version) error {
 	if value == nil {
 		return nil
 	}
@@ -166,8 +184,8 @@ func expandTimeoutSettings(result model.Object, value any) error {
 	}
 	for _, rawTarget := range sortedKeys(timeouts) {
 		target := strings.TrimPrefix(rawTarget, "timeout_")
-		if !settingsTimeoutTargets[target] {
-			return fmt.Errorf("settings.timeout.%s is not a Zabbix 7.0 timeout target", rawTarget)
+		if !settingsTimeoutTargets[target] && !(version.AtLeast(8, 0) && target == "telemetry_query") {
+			return fmt.Errorf("settings.timeout.%s is not supported by Zabbix %s", rawTarget, version.String())
 		}
 		setting := model.String(timeouts[rawTarget])
 		if setting == "" {

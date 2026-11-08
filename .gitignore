@@ -171,7 +171,8 @@ zc.secret
 
 .test_config/
 .tools/
-.agent/
+.agents/
 .codex/
 .vscode/
 .release/
+AGENTS.md

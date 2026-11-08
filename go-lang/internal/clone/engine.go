@@ -146,6 +146,9 @@ func (e *Engine) Refresh(ctx context.Context) error {
 				continue
 			}
 			name := model.String(object[spec.Name])
+			if method == "userdirectory" && isSAMLDirectory(object) {
+				name = samlDirectoryName
+			}
 			id := model.String(object[spec.ID])
 			delete(object, spec.ID)
 			if name != "" {

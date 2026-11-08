@@ -110,21 +110,42 @@ func (e *Engine) applyHostInterfaceWork(ctx context.Context, work hostInterfaceW
 		record("", work.Host.Name, fmt.Errorf("hostinterface.get: %w", work.PreparationFailed))
 		return
 	}
+	e.replaceHostInterfaces(ctx, work, record)
+}
+
+// Apply one complete list on all supported versions: individual mutations can
+// temporarily leave a type without a default interface, and 8.0 removed those
+// methods entirely. Retain IDs for matched and untouched rows to preserve items.
+func (e *Engine) replaceHostInterfaces(ctx context.Context, work hostInterfaceWork, record func(string, string, error)) {
+	interfaces := make([]any, 0, len(work.Plans))
+	handled := map[string]bool{}
+	changed := len(work.Deletes) != 0
+	for _, target := range work.Deletes {
+		handled[model.String(target["interfaceid"])] = true
+	}
 	for _, plan := range work.Plans {
-		target := interfaceTarget(work.Host.Name, plan.Function, plan.Update)
-		switch plan.Function {
-		case "skip":
-			record("skip", target, nil)
-		case "create":
-			record("create", target, e.createInterface(ctx, work.Host.ID, plan.Update, work.Existing))
-		case "update":
-			record("update", target, e.updateInterface(ctx, plan.Update, plan.Target, work.Existing))
+		data := model.CloneObject(plan.Update)
+		if plan.Target != nil {
+			data["interfaceid"] = plan.Target["interfaceid"]
+			handled[model.String(plan.Target["interfaceid"])] = true
+		}
+		interfaces = append(interfaces, data)
+		changed = changed || plan.Function != "skip"
+	}
+	for _, target := range work.Existing {
+		if !handled[model.String(target["interfaceid"])] {
+			interfaces = append(interfaces, model.Object{"interfaceid": target["interfaceid"]})
 		}
 	}
+	var err error
+	if changed {
+		_, err = e.API.Call(ctx, "host.update", model.Object{"hostid": work.Host.ID, "interfaces": interfaces})
+	}
+	for _, plan := range work.Plans {
+		record(plan.Function, interfaceTarget(work.Host.Name, plan.Function, plan.Update), err)
+	}
 	for _, target := range work.Deletes {
-		name := interfaceTarget(work.Host.Name, "delete", target)
-		_, err := e.API.Call(ctx, "hostinterface.delete", []any{target["interfaceid"]})
-		record("delete", name, err)
+		record("delete", interfaceTarget(work.Host.Name, "delete", target), err)
 	}
 }
 
@@ -239,77 +260,4 @@ func interfaceChanged(update, target model.Object) bool {
 		}
 	}
 	return false
-}
-
-func (e *Engine) createInterface(ctx context.Context, hostID string, update model.Object, existing []model.Object) error {
-	data := model.CloneObject(update)
-	data["hostid"] = hostID
-	old := currentMain(existing, update, nil)
-	if _, err := e.API.Call(ctx, "hostinterface.create", data); err == nil {
-		_ = e.unsetMain(ctx, old, false)
-		return nil
-	} else if old == nil {
-		return err
-	}
-	if err := e.unsetMain(ctx, old, true); err != nil {
-		return err
-	}
-	_, err := e.API.Call(ctx, "hostinterface.create", data)
-	return err
-}
-func (e *Engine) updateInterface(ctx context.Context, update, target model.Object, existing []model.Object) error {
-	data := model.CloneObject(update)
-	data["interfaceid"] = target["interfaceid"]
-	old := currentMain(existing, update, target)
-	if _, err := e.API.Call(ctx, "hostinterface.update", data); err == nil {
-		applyInterface(target, data)
-		_ = e.unsetMain(ctx, old, false)
-		return nil
-	} else if old == nil {
-		return err
-	}
-	if err := e.unsetMain(ctx, old, true); err != nil {
-		return err
-	}
-	_, err := e.API.Call(ctx, "hostinterface.update", data)
-	if err == nil {
-		applyInterface(target, data)
-	}
-	return err
-}
-
-func currentMain(existing []model.Object, update, target model.Object) model.Object {
-	if model.Int(update["main"]) != 1 || target != nil && model.Int(target["main"]) == 1 {
-		return nil
-	}
-	var current []model.Object
-	for _, item := range existing {
-		if model.Int(item["type"]) == model.Int(update["type"]) && model.Int(item["main"]) == 1 {
-			current = append(current, item)
-		}
-	}
-	if len(current) != 1 {
-		return nil
-	}
-	if target != nil && model.String(current[0]["interfaceid"]) == model.String(target["interfaceid"]) {
-		return nil
-	}
-	return current[0]
-}
-func (e *Engine) unsetMain(ctx context.Context, item model.Object, force bool) error {
-	if item == nil || !force && model.Int(item["main"]) == 0 {
-		return nil
-	}
-	_, err := e.API.Call(ctx, "hostinterface.update", model.Object{"interfaceid": item["interfaceid"], "main": 0})
-	if err == nil {
-		item["main"] = "0"
-	}
-	return err
-}
-func applyInterface(target, data model.Object) {
-	for key, value := range data {
-		if key != "interfaceid" {
-			target[key] = value
-		}
-	}
 }
