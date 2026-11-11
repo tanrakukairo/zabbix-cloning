@@ -188,7 +188,7 @@ func (e *Engine) exportConfiguration(ctx context.Context) error {
 		if method == "trigger" {
 			continue
 		}
-		var ids []any
+		ids := make([]any, 0, len(e.Local[method]))
 		for _, item := range e.Local[method] {
 			ids = append(ids, item.ID)
 		}

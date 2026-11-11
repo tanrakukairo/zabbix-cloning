@@ -22,6 +22,9 @@ func (e *Engine) ApplyConfiguration(ctx context.Context) error {
 			continue
 		}
 		switch method {
+		case "dashboard":
+			// Widget references require hosts, services, users, etc. to exist first.
+			continue
 		case "host":
 			base[section] = []any{}
 		case "template":
@@ -109,6 +112,25 @@ func (e *Engine) ApplyConfiguration(ctx context.Context) error {
 	if err := e.Refresh(ctx); err != nil {
 		return err
 	}
+	return nil
+}
+
+// ApplyDashboards imports the portable export after all referenced resources.
+func (e *Engine) ApplyDashboards(ctx context.Context) error {
+	if !e.Version.AtLeast(8, 0) || e.NewVersion.MasterVersion < 8 || len(e.Dataset["dashboard"]) == 0 {
+		return nil
+	}
+	values := make([]any, 0, len(e.Dataset["dashboard"]))
+	for _, item := range e.Dataset["dashboard"] {
+		values = append(values, model.CloneObject(item.Data))
+	}
+	if err := e.importConfiguration(ctx, model.Object{"dashboards": values}, "dashboards"); err != nil {
+		return err
+	}
+	for _, item := range e.Dataset["dashboard"] {
+		e.virtualUpsert("dashboard", item.Name, item.Data)
+	}
+	e.Log.Infof("Dashboard Import: %d success", len(values))
 	return nil
 }
 

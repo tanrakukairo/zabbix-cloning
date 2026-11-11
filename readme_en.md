@@ -18,6 +18,7 @@ use the [Python legacy version](prototype/readme_prototype.md).
 - Applies all hosts to a replica
 - Tracks host name changes with the `ZC_UUID` tag
 - Imports templates in dependency order
+- Exports and imports dashboards on Zabbix 8.0 or later
 - Updates host interfaces by difference
 - Supports file, Redis, DynamoDB, and direct master connections
 - Inspects store data with the `view` command
@@ -62,12 +63,29 @@ Windows builds create `bin/zc.exe` and `bin/view.exe`.
 - Services, SLAs, proxies, proxy groups, and connectors
 - Users, user groups, roles, user directories, MFA, and authentication
 - General Zabbix settings and auto-registration settings
+- Dashboards (both source and destination must run Zabbix 8.0 or later)
 
 Passwords and secrets unavailable through the Zabbix API are supplemented by
 configuration files.
 Media types using Normal Password SMTP authentication (`smtp_authentication=1`)
 with an empty password are excluded when master data is generated and when
 worker/replica data is applied because they cannot be imported.
+
+### Dashboards (Zabbix 8.0 or Later)
+
+The master retrieves dashboards visible to the API user with `configuration.export`
+and saves them to the store. Workers and replicas create or update them with
+`configuration.import` after applying hosts and other referenced configuration.
+Updating an existing dashboard fully replaces its pages and widgets.
+No additional option is required. Store data from 7.x does not apply dashboards.
+
+Ownership and sharing permissions are not synchronized. Referenced objects that
+ZC does not synchronize, such as maps, must be provided separately on the destination.
+`--delete.api` does not delete dashboards absent from the store.
+`--initialize.full` includes dashboards among the objects to delete only when
+the source data is from 8.0 or later. Applying 7.x data preserves existing dashboards.
+See the [API usage reference](documents/API_Use_in_zc.md#80のダッシュボード入出力2026-11-11)
+for API selection and limitations (Japanese).
 
 ## Roles
 
@@ -513,6 +531,10 @@ recreate the stored data after upgrading.
 
 ## Verification Status
 
+Dashboard export/import on 8.0 has been verified with HTTP mocks for the store
+and import round trip and for 7.x/8.0 version selection. Export/import and display
+on live Zabbix instances have not yet been verified.
+
 On 2026-11-07, file-store compatibility tests were added using isolated Zabbix
 7.0.29, 7.2.15, 7.4.14, and 8.0.0 instances in t2dev. They cover all ten same-version
 and forward-version pairs. See the [test record](documents/zabbix80-compatibility.md)
@@ -536,6 +558,7 @@ The following Zabbix configuration types are supported:
 - Template groups
 - Hosts
 - Templates
+- Dashboards (8.0 or later)
 - Actions (trigger, service, discovery, and internal)
 - Scripts
 - Maintenance

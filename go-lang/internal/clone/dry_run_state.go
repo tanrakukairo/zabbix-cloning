@@ -111,7 +111,7 @@ func (e *Engine) virtualApplyConfiguration() {
 		return
 	}
 	for method := range e.Params.ConfigExport {
-		if method == "host" || method == "trigger" || method == "template" && e.Config.SkipTemplate {
+		if method == "dashboard" || method == "host" || method == "trigger" || method == "template" && e.Config.SkipTemplate {
 			continue
 		}
 		for _, item := range e.Dataset[method] {

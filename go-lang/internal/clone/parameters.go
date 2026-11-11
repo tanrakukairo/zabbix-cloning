@@ -58,6 +58,9 @@ func NewParameters(version zabbix.Version) (*Parameters, error) {
 	user.Options["selectUsrgrps"] = []any{"usrgrpid", "name"}
 	data.Methods["user"] = user
 	if version.AtLeast(8, 0) {
+		data.Methods["dashboard"] = MethodSpec{ID: "dashboardid", Name: "name", Options: map[string]any{"output": []any{"dashboardid", "name"}}}
+		data.Sections.ConfigExport["dashboard"] = "dashboards"
+		data.Rules["dashboards"] = map[string]any{"createMissing": true, "updateExisting": true}
 		regexp := data.Methods["regexp"]
 		regexp.Options["output"] = append(regexp.Options["output"].([]any), "description")
 		data.Methods["regexp"] = regexp
@@ -137,6 +140,9 @@ func (p *Parameters) ImportSections(masterVersion float64) map[string]string {
 	if masterVersion >= 6.2 {
 		sections["hostgroup"] = "host_groups"
 		sections["templategroup"] = "template_groups"
+	}
+	if masterVersion >= 8 && p.ConfigExport["dashboard"] != "" {
+		sections["dashboard"] = "dashboards"
 	}
 	return sections
 }

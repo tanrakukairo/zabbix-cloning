@@ -20,7 +20,7 @@
 | --- | --- | --- |
 | 全体設定 | `autoregistration`、`settings`、`authentication` | `autoregistration.update`、`settings.update`、`authentication.update`。認証設定はアカウント関連の適用後に反映する。 |
 | `PRE`（構成のインポート前） | `usermacro`、`regexp`、`connector`、`proxygroup` | グローバルマクロは `usermacro.createglobal` / `usermacro.updateglobal`。残りは各 `.create` / `.update`。 |
-| 構成の入出力 | `hostgroup`、`templategroup`、`template`、`mediatype` | `configuration.export` / `configuration.import`。 |
+| 構成の入出力 | `hostgroup`、`templategroup`、`template`、`mediatype`、8.0以降の `dashboard` | `configuration.export` / `configuration.import`。ダッシュボードは他のリソース適用後にインポートする。 |
 | `MID`（ホスト適用前） | `script`、`proxy` | 各 `.create` / `.update`。 |
 | ホスト | `host` | `host.create` / `host.update`。インターフェイスの取得は `hostinterface.get`。 |
 | `POST`（ホスト適用後） | `action`、`maintenance`、`drule`、`correlation`、`role`、`service`、`sla`、`userdirectory`、`mfa` | 各 `.create` / `.update`。`drule` はネットワークディスカバリ用。SAMLディレクトリの適用は `ACCOUNT` の後に行う。 |
@@ -34,6 +34,18 @@
 - `configuration.export` はJSON形式でホストグループ、テンプレートグループ、ホスト、メディアタイプを取得する。テンプレートは別バッチで取得する。トリガーはエクスポート結果に含まれるデータを取り込む。取得元のLLD生成ホストは複製対象から除外する。[エクスポート実装](../go-lang/internal/clone/master.go)
 - `configuration.import` はグループやメディアタイプの基本構成を適用し、その後テンプレートを依存順に適用する。テンプレート配下のアイテム・LLDルール・トリガーもインポートルールで扱う。複製先に同一UUIDで名前が異なるテンプレートがあれば `template.delete` を呼ぶ。[インポート実装](../go-lang/internal/clone/configuration.go)
 - ホスト本体は `host.create` / `host.update` を使う。取得元のホストに識別タグ `ZC_UUID` がなければ、マスター処理中に `host.update` で付与する。既存ホストのインターフェイスは `hostinterface.get` で詳細を取得し、差分がある場合に `host.update` の `interfaces` でまとめて更新する。既存アイテムからの参照を保つため、対応する `interfaceid` を引き継ぐ。[ホスト処理](../go-lang/internal/clone/host.go) · [インターフェイス同期](../go-lang/internal/clone/interface.go)
+
+### 8.0のダッシュボード入出力（2026-11-11）
+
+7.0→7.2、7.2→7.4、7.4→8.0の公式API変更履歴と、`parameters.go`、`master.go`、`configuration.go`、`run.go` の呼び出しを照合した。8.0で追加されたダッシュボード入出力は独立した転送APIではなく、既存の `configuration` APIで扱えるため同期対象に追加した。
+
+- **取得** — 8.0以降で `dashboard.get` の `output: ["dashboardid", "name"]` により対象一覧を取得し、そのIDを `configuration.export` の `options.dashboards` に渡す。内部IDは取得元での対象指定にのみ使い、ストアには公式エクスポートの `dashboards`（名前・ページ・ウィジェットと参照）を保存する。ホスト参照はホスト名、アイテム参照はホスト名とキーなど、エクスポート形式のまま保持する。空の対象は `[]` を送る。
+- **適用** — `configuration.import` の `rules.dashboards` に `createMissing: true`、`updateExisting: true` を指定する。ホスト・テンプレート・サービス・SLA・ユーザーなどの参照先を適用した後、最後にダッシュボードだけをインポートする。更新時はページとウィジェットを全置換する。`dashboard.create/update` で取得元のIDを直接適用する処理は追加していない。
+- **バージョンの使い分け** — 取得対象・エクスポートオプション・インポートルールへの追加は8.0以降のみ。ダッシュボードの適用には取得元と適用先の両方が8.0以降であることが必要。7.0 / 7.2 / 7.4の取得や、7.xの既存ストアから8.0への適用ではダッシュボードをインポートしない。従来のテンプレート内ダッシュボード（`templateDashboards`）の無効ルールは変更していない。
+- **範囲と制約** — APIで閲覧可能なダッシュボードが対象。所有者・共有権限を独立APIで複製する処理は追加せず、公式エクスポートが含める項目を扱う。マップなどZCが同期しない参照先は複製先に別途用意する。参照先が存在しない場合の扱いは公式インポート仕様に従う。`--delete.api` による差分削除は追加していない。`--initialize.full` は取得元データの `MasterVersion` が8.0以降の場合のみ `dashboard.delete` の対象とし、他リソースより先に削除する。7.xのデータ、またはバージョン情報が未設定の場合は、通常実行・dry-runとも既存ダッシュボードを削除しない。8.0以降のデータはダッシュボードが空でも削除対象とする。
+- **検証** — HTTPモックで対象IDの指定、空配列、参照情報を含むストアへの保存とインポートの往復、基本構成適用からの分離、dry-run仮想状態への反映を確認した。7.0 / 7.2 / 7.4 / 8.0のバージョン分岐と旧ストアのスキップも回帰テストで確認した。`./tests/test-go.ps1 -count=1` は全パッケージ成功。今回の実機Zabbixでの入出力・画面表示確認は未実施。[回帰テスト](../tests/go/internal/clone/dashboard_test.go)
+
+公式資料: [7.2 API変更履歴](https://www.zabbix.com/documentation/7.2/en/manual/api/changes) · [7.4 API変更履歴](https://www.zabbix.com/documentation/7.4/en/manual/api/changes) · [8.0 API変更履歴](https://www.zabbix.com/documentation/8.0/en/manual/api/changes) · [configuration.export](https://www.zabbix.com/documentation/8.0/en/manual/api/reference/configuration/export) · [configuration.import](https://www.zabbix.com/documentation/8.0/en/manual/api/reference/configuration/import) · [dashboard.get](https://www.zabbix.com/documentation/8.0/en/manual/api/reference/dashboard/get) · [ダッシュボードのエクスポート形式・インポート時の参照](https://www.zabbix.com/documentation/8.0/en/manual/config/xml_export_import/dashboards)
 
 ## 運用オプションと補助処理
 
@@ -98,4 +110,4 @@ Zabbix 8.0.0を2台用意し、fileストアを使ったマスター取得とレ
 
 - 7.2の `auth` 廃止はBearer認証への切り替えで対応済み。廃止された `selectGroups`、`selectRights`、`discoveryrule.copy` は現行の呼び出しにない。7.4の厳格化に対して `user.get` は `userid` を明示し、`mediatype.get` と `usergroup.get` は該当の `selectUsers` や `mfaids` を送らない。[取得定義](../go-lang/internal/clone/parameters.go) · [認証実装](../go-lang/internal/zabbix/client.go)
 - 8.0のホストインターフェイスの変更、ロールの空の許可リスト、`serverid`、正規表現の説明、アクションのプロキシグループ条件は既存試験の検証範囲。廃止された `*.massupdate` は現行コードで呼び出していない。[互換性確認記録](zabbix80-compatibility.md)
-- 履歴データ、マップ、ダッシュボード、CEPルール、APMデータ、デバイスは現行の複製対象外。8.0の `configuration.importcompare` やダッシュボードの入出力オプションも使用していない。グローバル正規表現は構成エクスポートの新オプションを使わず、既存の `regexp.get/create/update` で同期する。[取得・インポート定義](../go-lang/internal/clone/parameters.go)
+- 履歴データ、マップ、CEPルール、APMデータ、デバイスは現行の複製対象外。8.0の `configuration.importcompare` は使用していない。ダッシュボードの入出力は2026-11-11に8.0以降向けに追加した（上記参照）。グローバル正規表現は構成エクスポートの新オプションを使わず、既存の `regexp.get/create/update` で同期する。[取得・インポート定義](../go-lang/internal/clone/parameters.go)

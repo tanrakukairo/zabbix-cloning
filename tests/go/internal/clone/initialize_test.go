@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,6 +15,77 @@ import (
 	"github.com/tanrakukairo/zabbix-cloning/internal/model"
 	"github.com/tanrakukairo/zabbix-cloning/internal/zabbix"
 )
+
+func TestInitializeFullPreservesDashboardsForOlderSourceData(t *testing.T) {
+	for _, master := range []float64{0, 7.0, 7.2, 7.4, 8.0} {
+		for _, dryRun := range []bool{false, true} {
+			t.Run(fmt.Sprintf("source=%.1f/dryRun=%t", master, dryRun), func(t *testing.T) {
+				calls := map[string]int{}
+				dashboardDeleted := false
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					var req struct{ Method string }
+					if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+						t.Error(err)
+					}
+					calls[req.Method]++
+					var result any = model.Object{}
+					switch req.Method {
+					case "dashboard.get":
+						result = []any{}
+						if !dashboardDeleted {
+							result = []any{model.Object{"dashboardid": "42", "name": "Overview"}}
+						}
+					case "action.get":
+						result = []any{model.Object{"actionid": "43", "name": "Notify"}}
+					case "dashboard.delete":
+						dashboardDeleted = true
+					}
+					_ = json.NewEncoder(w).Encode(model.Object{"jsonrpc": "2.0", "id": 1, "result": result})
+				}))
+				defer server.Close()
+				api, err := zabbix.New(server.URL, false)
+				if err != nil {
+					t.Fatal(err)
+				}
+				api.SetDryRun(dryRun)
+				logger, err := logx.New("test", "INFO", "", true)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer logger.Close()
+				e := &Engine{API: api, Log: logger, Version: zabbix.ParseVersion("8.0.0"),
+					Config: &config.Config{DryRun: dryRun}, NewVersion: model.Version{MasterVersion: master},
+					Params: &Parameters{Methods: map[string]MethodSpec{
+						"dashboard": {ID: "dashboardid", Name: "name"}, "action": {ID: "actionid", Name: "name"},
+					}},
+					Local: map[string]map[string]*LocalItem{
+						"dashboard": {"Overview": {ID: "42", Name: "Overview", Data: model.Object{"name": "Overview"}}},
+						"action":    {"Notify": {ID: "43", Name: "Notify", Data: model.Object{"name": "Notify"}}},
+					},
+				}
+				if dryRun {
+					e.enableDryRunVirtualState()
+				}
+				if err := e.initializeFull(context.Background()); err != nil {
+					t.Fatal(err)
+				}
+				if dryRun {
+					calls = api.DryRunMethods()
+				}
+				wantDeletes := 0
+				if master >= 8 {
+					wantDeletes = 1
+				}
+				if calls["dashboard.delete"] != wantDeletes || calls["action.delete"] != 1 {
+					t.Fatalf("unexpected deletion calls: %v", calls)
+				}
+				if preserved := e.Local["dashboard"]["Overview"] != nil; preserved != (master < 8) {
+					t.Fatalf("dashboard preserved = %t", preserved)
+				}
+			})
+		}
+	}
+}
 
 func TestInitializeFullDeletesAllUnprotectedIDObjects(t *testing.T) {
 	api, err := zabbix.New("http://127.0.0.1:1", false)
