@@ -3,6 +3,7 @@ package clone
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 
 	"github.com/tanrakukairo/zabbix-cloning/internal/model"
@@ -127,8 +128,14 @@ func (e *Engine) deleteAllForInitialize(ctx context.Context, method string, full
 		e.Log.Infof("Initialize[role]: %d deleted", deleted)
 		return nil
 	}
-	if _, err := e.API.Call(ctx, deleteMethod, ids); err != nil {
-		return fmt.Errorf("initialize %s: %w", method, err)
+	batchSize := len(ids)
+	if full && method == "template" {
+		batchSize = 10
+	}
+	for batch := range slices.Chunk(ids, batchSize) {
+		if _, err := e.API.Call(ctx, deleteMethod, batch); err != nil {
+			return fmt.Errorf("initialize %s: %w", method, err)
+		}
 	}
 	if e.dryRunVirtual {
 		for _, name := range names {

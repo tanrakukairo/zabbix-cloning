@@ -594,7 +594,7 @@ func namedRelationIDs(names []string, key string, lookup map[string]any) []any {
 }
 
 func protectedAPIObject(method, name string, item *LocalItem) bool {
-	if method == "user" && (name == superUser || userBelongsToProtectedGroup(item)) {
+	if method == "user" && (name == superUser || name == "guest" || userBelongsToProtectedGroup(item)) {
 		return true
 	}
 	if method == "usergroup" && protectedUserGroupID(item.ID) {

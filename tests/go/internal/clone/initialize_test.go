@@ -129,6 +129,10 @@ func TestInitializeFullDeletesAllUnprotectedIDObjects(t *testing.T) {
 	local["settings"]["discovery_groupid"] = &LocalItem{
 		Name: "discovery_groupid", Data: model.Object{"discovery_groupid": "23"},
 	}
+	for i := 1; i <= 20; i++ {
+		name := fmt.Sprintf("template-%d", i)
+		local["template"][name] = &LocalItem{ID: fmt.Sprint(i), Name: name}
+	}
 
 	engine := &Engine{
 		API: api, Log: logger, Params: parameters, Local: local,
@@ -154,8 +158,8 @@ func TestInitializeFullDeletesAllUnprotectedIDObjects(t *testing.T) {
 	if engine.Local["user"]["API operator"] == nil {
 		t.Fatal("API execution user was deleted")
 	}
-	if engine.Local["user"]["guest"] != nil {
-		t.Fatal("guest user was protected by username")
+	if engine.Local["user"]["guest"] == nil {
+		t.Fatal("guest user was deleted")
 	}
 	for _, name := range []string{"Administrator group member", "Internal group member"} {
 		if engine.Local["user"][name] == nil {
@@ -168,6 +172,10 @@ func TestInitializeFullDeletesAllUnprotectedIDObjects(t *testing.T) {
 		}
 	}
 	counts := api.DryRunMethods()
+	if counts["template.delete"] != 3 || len(engine.Local["template"]) != 0 {
+		t.Fatalf("expected all 21 templates deleted in 3 batches, got %d calls with %d templates left",
+			counts["template.delete"], len(engine.Local["template"]))
+	}
 	if counts["authentication.update"] != 1 {
 		t.Fatalf("authentication reset was not planned: %#v", counts)
 	}
