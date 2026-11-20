@@ -46,6 +46,7 @@ type Engine struct {
 	dryRunVirtual    bool
 	dryRunSequence   int
 	deferredSettings model.Object
+	apmSettings      model.Object
 }
 
 func New(ctx context.Context, cfg *config.Config, logger *logx.Logger) (*Engine, error) {

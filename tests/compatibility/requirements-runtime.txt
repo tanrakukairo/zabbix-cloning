@@ -1,0 +1,6 @@
+# Optional OTLP runtime extension; keep isolated from the user's Python packages.
+grpcio==1.85.3
+opentelemetry-proto==1.45.2
+protobuf==7.36.2
+typing_extensions==4.16.0
+zabbix-utils==2.0.4

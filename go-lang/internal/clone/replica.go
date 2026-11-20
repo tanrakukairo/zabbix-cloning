@@ -155,6 +155,9 @@ func (e *Engine) ApplyAPISection(ctx context.Context, section string) error {
 		return nil
 	}
 	for _, method := range methods {
+		if method == "ceprule" && (!e.Version.AtLeast(8, 0) || e.NewVersion.MasterVersion < 8) {
+			continue
+		}
 		items := e.Dataset[method]
 		desired := map[string]bool{}
 		created, updated, deleted, skipped := 0, 0, 0, 0
@@ -178,6 +181,10 @@ func (e *Engine) ApplyAPISection(ctx context.Context, section string) error {
 			if !e.prepareSpecialAPIItem(method, item.Name, data) {
 				skipped++
 				continue
+			}
+			if method == "proxy" && e.Version.AtLeast(8, 0) {
+				// Apply collection settings together with the data source near the end.
+				delete(data, "apm")
 			}
 			callMethod := method + ".create"
 			if local := e.Local[method][item.Name]; local != nil {
@@ -231,6 +238,8 @@ func (e *Engine) ApplyAPISection(ctx context.Context, section string) error {
 
 func (e *Engine) prepareSpecialAPIItem(method, name string, data model.Object) bool {
 	switch method {
+	case "ceprule":
+		normalizeCEPRule(data)
 	case "action":
 		if !e.normalizeAction(name, data) {
 			return false
@@ -242,11 +251,6 @@ func (e *Engine) prepareSpecialAPIItem(method, name string, data model.Object) b
 	case "maintenance":
 		if !e.normalizeMaintenance(data) {
 			return false
-		}
-	case "proxy":
-		if apm := objectMap(data["apm"]); len(apm) > 0 && model.Int(apm["data_collection_status"]) == 0 {
-			delete(apm, "max_messages_per_second")
-			delete(apm, "additional_resource_attributes")
 		}
 	case "regexp":
 		for _, expression := range objects(data["expressions"]) {

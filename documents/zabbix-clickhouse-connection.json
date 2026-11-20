@@ -1,0 +1,17 @@
+{
+  "date": "2026-11-20",
+  "context": "t2dev",
+  "namespace": "zc-apm-connect-check",
+  "zabbix": "8.0.0",
+  "clickhouse": "26.9.33.10",
+  "apm_api_counts": {
+    "apmtrace.get": "1",
+    "apmspan.get": "1",
+    "apmmetric.get": "1",
+    "apmlog.get": "1"
+  },
+  "server_telemetry_query": {
+    "status": "PASS",
+    "value": "[{\"clock\":1795155976,\"SpanName\":\"connection-probe\",\"Duration\":1000000,\"events\":1}]"
+  }
+}

@@ -109,6 +109,9 @@ func Run(ctx context.Context, cfg *config.Config, logger *logx.Logger) error {
 		if _, err = engine.ApplyPSK(ctx); err != nil {
 			return fmt.Errorf("setPskToZabbix: %w", err)
 		}
+		if err = engine.ApplyAPMSettings(ctx); err != nil {
+			return fmt.Errorf("apply APM settings: %w", err)
+		}
 		if err = engine.ApplyDashboards(ctx); err != nil {
 			return fmt.Errorf("import dashboards: %w", err)
 		}

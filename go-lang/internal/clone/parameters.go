@@ -3,6 +3,7 @@ package clone
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/tanrakukairo/zabbix-cloning/internal/model"
@@ -58,6 +59,10 @@ func NewParameters(version zabbix.Version) (*Parameters, error) {
 	user.Options["selectUsrgrps"] = []any{"usrgrpid", "name"}
 	data.Methods["user"] = user
 	if version.AtLeast(8, 0) {
+		data.Methods["ceprule"] = MethodSpec{ID: "cep_ruleid", Name: "name", Options: map[string]any{
+			"output": "extend", "selectFilter": "extend", "selectWindow": "extend", "selectOperations": "extend",
+		}}
+		data.Sections.Post = slices.Insert(data.Sections.Post, slices.Index(data.Sections.Post, "correlation")+1, "ceprule")
 		data.Methods["dashboard"] = MethodSpec{ID: "dashboardid", Name: "name", Options: map[string]any{"output": []any{"dashboardid", "name"}}}
 		data.Sections.ConfigExport["dashboard"] = "dashboards"
 		data.Rules["dashboards"] = map[string]any{"createMissing": true, "updateExisting": true}

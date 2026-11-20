@@ -76,6 +76,8 @@ func (e *Engine) excludeLLDDiscoveredHostsFromMaster() int {
 
 func (e *Engine) prepareMasterItem(method string, data model.Object) bool {
 	switch method {
+	case "ceprule":
+		normalizeCEPRule(data)
 	case "usermacro":
 		kind, known := macroType(data["type"])
 		if known && kind == macroTypeSecret {

@@ -22,6 +22,7 @@ func TestInitializeFullPreservesDashboardsForOlderSourceData(t *testing.T) {
 			t.Run(fmt.Sprintf("source=%.1f/dryRun=%t", master, dryRun), func(t *testing.T) {
 				calls := map[string]int{}
 				dashboardDeleted := false
+				cepDeleted := false
 				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					var req struct{ Method string }
 					if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -39,6 +40,13 @@ func TestInitializeFullPreservesDashboardsForOlderSourceData(t *testing.T) {
 						result = []any{model.Object{"actionid": "43", "name": "Notify"}}
 					case "dashboard.delete":
 						dashboardDeleted = true
+					case "ceprule.get":
+						result = []any{}
+						if !cepDeleted {
+							result = []any{model.Object{"cep_ruleid": "44", "name": "CEP"}}
+						}
+					case "ceprule.delete":
+						cepDeleted = true
 					}
 					_ = json.NewEncoder(w).Encode(model.Object{"jsonrpc": "2.0", "id": 1, "result": result})
 				}))
@@ -57,8 +65,10 @@ func TestInitializeFullPreservesDashboardsForOlderSourceData(t *testing.T) {
 					Config: &config.Config{DryRun: dryRun}, NewVersion: model.Version{MasterVersion: master},
 					Params: &Parameters{Methods: map[string]MethodSpec{
 						"dashboard": {ID: "dashboardid", Name: "name"}, "action": {ID: "actionid", Name: "name"},
+						"ceprule": {ID: "cep_ruleid", Name: "name"},
 					}},
 					Local: map[string]map[string]*LocalItem{
+						"ceprule":   {"CEP": {ID: "44", Name: "CEP", Data: model.Object{"name": "CEP"}}},
 						"dashboard": {"Overview": {ID: "42", Name: "Overview", Data: model.Object{"name": "Overview"}}},
 						"action":    {"Notify": {ID: "43", Name: "Notify", Data: model.Object{"name": "Notify"}}},
 					},
@@ -78,6 +88,9 @@ func TestInitializeFullPreservesDashboardsForOlderSourceData(t *testing.T) {
 				}
 				if calls["dashboard.delete"] != wantDeletes || calls["action.delete"] != 1 {
 					t.Fatalf("unexpected deletion calls: %v", calls)
+				}
+				if calls["ceprule.delete"] != wantDeletes || (e.Local["ceprule"]["CEP"] != nil) != (master < 8) {
+					t.Fatalf("unexpected CEP initialization: %v, %v", calls, e.Local["ceprule"])
 				}
 				if preserved := e.Local["dashboard"]["Overview"] != nil; preserved != (master < 8) {
 					t.Fatalf("dashboard preserved = %t", preserved)

@@ -19,6 +19,8 @@ use the [Python legacy version](prototype/readme_prototype.md).
 - Tracks host name changes with the `ZC_UUID` tag
 - Imports templates in dependency order
 - Exports and imports dashboards on Zabbix 8.0 or later
+- Synchronizes CEP (complex event processing) rules on Zabbix 8.0 or later
+- Synchronizes APM data sources, proxy collection settings, and permissions on Zabbix 8.0 or later
 - Updates host interfaces by difference
 - Supports file, Redis, DynamoDB, and direct master connections
 - Inspects store data with the `view` command
@@ -64,12 +66,60 @@ Windows builds create `bin/zc.exe` and `bin/view.exe`.
 - Users, user groups, roles, user directories, MFA, and authentication
 - General Zabbix settings and auto-registration settings
 - Dashboards (both source and destination must run Zabbix 8.0 or later)
+- CEP rules (both source and destination must run Zabbix 8.0 or later)
+- APM global data source, proxy collection settings, and user-group permissions (8.0 or later)
 
 Passwords and secrets unavailable through the Zabbix API are supplemented by
 configuration files.
 Media types using Normal Password SMTP authentication (`smtp_authentication=1`)
 with an empty password are excluded when master data is generated and when
 worker/replica data is applied because they cannot be imported.
+
+### APM (Zabbix 8.0 or Later)
+
+ZC synchronizes the Administration > Data source > APM connection settings,
+proxy collection status, message limits, additional resource attributes, and
+user-group proxy/proxy-group assignments and APM filters.
+The global data source is retrieved and applied as `settings.apm_global_db`.
+
+Proxy identities and permissions are applied first. Near the end, before
+dashboards, ZC applies the data source followed by proxy APM collection settings.
+Other general settings retain their early position. APM settings are not sent to
+7.x. Missing APM fields in older stores leave existing settings unchanged unless
+explicitly overridden in the destination configuration.
+
+Connection passwords are secrets, like PSKs. API-returned passwords are excluded
+from stores, and passwords present in older stores are also ignored on apply.
+Supply the destination password through `zc.secret`:
+
+```json
+{
+  "settings": {
+    "apm_global_db": {
+      "password": "CLICKHOUSE_PASSWORD"
+    }
+  }
+}
+```
+
+Data-source overrides merge individual fields, so a password-only override retains
+the source URL and database name. An omitted password is not sent; an explicit
+empty string sets an empty password. When using password authentication, enabling
+the data source or changing its URL requires an explicit password in the Zabbix API.
+Telemetry records in ClickHouse and server/proxy/frontend configuration files
+are outside the cloning scope. See the [API usage reference](documents/API_Use_in_zc.md)
+for details (Japanese).
+
+### CEP Rules (Zabbix 8.0 or Later)
+
+ZC synchronizes rule conditions, time windows, operations, execution order, and
+enabled status. Rules are updated by name or created when absent. Changes require
+Super admin privileges. Runtime errors and events held in windows are not cloned;
+ZC does not call the time-window reset API.
+`--delete.api` removes rules absent from the source, and `--initialize.full`
+includes CEP rules. Source data from 7.x or without a version leaves existing
+CEP rules unchanged, including during deletion and full initialization.
+See the [API usage reference](documents/API_Use_in_zc.md) for details (Japanese).
 
 ### Dashboards (Zabbix 8.0 or Later)
 
@@ -531,6 +581,17 @@ recreate the stored data after upgrading.
 
 ## Verification Status
 
+HTTP mocks cover APM application order, secret exclusion and injection, disabled
+and unauthenticated data sources, TLS conditions, dry-run, and older versions.
+Live configuration synchronization and connectivity were verified on Zabbix 8.0.0
+in t2dev on 2026-11-20. After the VM CPU settings changed, APM API reads and a
+server Telemetry query successfully retrieved seeded data from ClickHouse 26.9.33.10.
+End-to-end OTLP ingestion has not been rerun.
+
+CEP retrieval, storage, creation, updates, deletion, older-source protection, and
+full initialization in normal and dry-run modes are covered by HTTP mocks.
+Live tests in t2dev on 2026-11-20 verified synchronization of all five window types and event-name transformation by a None-type rule. See the [CEP/APM live test report](documents/cep-apm-live-test.md) for details and limitations (Japanese).
+
 Dashboard export/import on 8.0 has been verified with HTTP mocks for the store
 and import round trip and for 7.x/8.0 version selection. Export/import and display
 on live Zabbix instances have not yet been verified.
@@ -559,6 +620,8 @@ The following Zabbix configuration types are supported:
 - Hosts
 - Templates
 - Dashboards (8.0 or later)
+- CEP rules (8.0 or later)
+- APM settings (8.0 or later)
 - Actions (trigger, service, discovery, and internal)
 - Scripts
 - Maintenance

@@ -1,9 +1,10 @@
 # Disposable live compatibility environment. Always use the explicit context.
-param([string]$Context = 't2dev', [string]$Namespace = 'zc-compat-20261107')
+param([string]$Context = 't2dev', [string]$Namespace = 'zc-compat-20261107', [string[]]$Series = @())
 $ErrorActionPreference = 'Stop'
 $items = @(@{apiVersion='v1';kind='Namespace';metadata=@{name=$Namespace;labels=@{purpose='zc-compatibility-test'}}})
 $versions = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'versions.json') -Raw | ConvertFrom-Json
 foreach ($release in ($versions.PSObject.Properties | Sort-Object Name)) {
+    if ($Series.Count -gt 0 -and $release.Name -notin $Series) { continue }
     $version = $release.Name
     $tag = $release.Value
     foreach ($role in @('source','target')) {

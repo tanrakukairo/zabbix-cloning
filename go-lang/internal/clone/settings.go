@@ -40,12 +40,39 @@ func (e *Engine) prepareSettingsUpdate(data model.Object) (model.Object, error) 
 	if err != nil {
 		return nil, err
 	}
-	delete(objectMap(data["apm_global_db"]), "password")
+	// Never apply credentials returned by an API or loaded from an older store.
+	// Like PSKs, the target supplies this secret through its configuration.
+	if value, exists := data["apm_global_db"]; exists {
+		db := model.CloneObject(objectMap(value))
+		delete(db, "password")
+		data["apm_global_db"] = db
+	}
 	for key, value := range overrides {
+		if key == "apm_global_db" {
+			merged := model.CloneObject(objectMap(data[key]))
+			if merged == nil {
+				merged = model.Object{}
+			}
+			for field, setting := range objectMap(value) {
+				merged[field] = setting
+			}
+			data[key] = merged
+			continue
+		}
 		data[key] = value
 	}
 	discardReadOnlySettings(data)
 	e.deferredSettings = e.resolveTargetSettingsIDs(data)
+	e.apmSettings = nil
+	if apm, exists := data["apm_global_db"]; exists {
+		if !e.Version.AtLeast(8, 0) {
+			return nil, fmt.Errorf("APM settings require Zabbix 8.0 or later")
+		}
+		db := model.CloneObject(objectMap(apm))
+		normalizeAPMDataSource(db)
+		e.apmSettings = model.Object{"apm_global_db": db}
+		delete(data, "apm_global_db")
+	}
 	return data, nil
 }
 

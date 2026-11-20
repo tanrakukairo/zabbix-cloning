@@ -80,8 +80,11 @@ func TestSettings80OverridesAndCredentials(t *testing.T) {
 		t.Fatal(err)
 	}
 	if applied["timeout_telemetry_query"] != "15s" || applied["device_link_timeout"] != "30s" ||
-		objectMap(applied["apm_global_db"])["password"] != "target-secret" {
+		objectMap(engine.apmSettings["apm_global_db"])["password"] != "target-secret" {
 		t.Fatal("8.0 settings overrides were not applied")
+	}
+	if _, early := applied["apm_global_db"]; early {
+		t.Fatal("APM data source must be deferred")
 	}
 	for _, override := range []model.Object{
 		{"device_link_timeout": "30s"}, {"timeout_telemetry_query": "15s"},

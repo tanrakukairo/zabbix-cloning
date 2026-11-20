@@ -1,0 +1,189 @@
+{
+  "date": "2026-11-20",
+  "context": "t2dev",
+  "namespace": "zc-cep-apm-20261120",
+  "zabbix_versions": {
+    "legacy_source": "7.4.16",
+    "target": "8.0.0",
+    "source": "8.0.0"
+  },
+  "clickhouse_connectivity_version": "26.3.66.4",
+  "clickhouse_ingestion_image": "clickhouse/clickhouse-server:26.9",
+  "ingestion_status": "BLOCKED",
+  "ingestion_reason": "APM requires ClickHouse >= 26.8.17.4; the t2dev VM CPU does not expose AVX2 and the official 26.9 image exits 132 (SIGILL).",
+  "cli_sha256": "bec3c6ef674c4f0da4e42428876a8d0e5c3fb5180edaea8b8652de3f6f053a13",
+  "toolchain": "go version go1.27.0 windows/amd64",
+  "results": [
+    {
+      "test": "seed all five CEP window types and APM fixtures",
+      "status": "PASS"
+    },
+    {
+      "test": "store contains CEP/APM configuration and excludes passwords",
+      "status": "PASS"
+    },
+    {
+      "test": "8.0 master to replica creates CEP and APM with target IDs",
+      "status": "PASS"
+    },
+    {
+      "test": "8.0 worker reapplies CEP and APM",
+      "status": "PASS"
+    },
+    {
+      "test": "dry-run makes no CEP/APM changes",
+      "status": "PASS"
+    },
+    {
+      "test": "CEP update preserves IDs; APM source and collection disable",
+      "status": "PASS"
+    },
+    {
+      "test": "7.4 store with initialize.full preserves CEP and APM data source",
+      "status": "PASS"
+    },
+    {
+      "test": "7.4 store with delete.api preserves CEP and existing APM fields",
+      "status": "PASS"
+    },
+    {
+      "test": "8.0 initialize.full deletes and recreates CEP; restores APM",
+      "status": "PASS"
+    },
+    {
+      "test": "CEP transforms a real trapper-trigger event name",
+      "status": "PASS"
+    },
+    {
+      "test": "APM update https and empty resource attributes",
+      "status": "PASS"
+    },
+    {
+      "test": "APM update https-no-verify and empty resource attributes",
+      "status": "PASS"
+    },
+    {
+      "test": "APM update http-no-auth and empty resource attributes",
+      "status": "PASS"
+    },
+    {
+      "test": "8.0 delete.api removes obsolete CEP and preserves desired IDs",
+      "status": "PASS"
+    },
+    {
+      "test": "store contains CEP/APM configuration and excludes passwords",
+      "status": "PASS"
+    },
+    {
+      "test": "APM API connection accepts target secret and rejects source secret",
+      "status": "PASS"
+    },
+    {
+      "test": "store contains CEP/APM configuration and excludes passwords",
+      "status": "PASS"
+    },
+    {
+      "test": "APM collection end to end",
+      "status": "BLOCKED",
+      "reason": "t2dev does not expose AVX2; the supported ClickHouse 26.9 image exits with SIGILL. ClickHouse 26.3 cannot parse APM fractional timestamps."
+    }
+  ],
+  "images": [
+    {
+      "pod": "apm-proxy",
+      "node": "t2dev-worker2",
+      "image": "docker.io/zabbix/zabbix-proxy-sqlite3:alpine-8.0.0",
+      "imageID": "docker.io/zabbix/zabbix-proxy-sqlite3@sha256:7be029140ccdb35da8cdd64e1f0156d93d85b59e7980232454f12d3199122800"
+    },
+    {
+      "pod": "clickhouse",
+      "node": "t2dev-worker2",
+      "image": "docker.io/clickhouse/clickhouse-server:26.3",
+      "imageID": "docker.io/clickhouse/clickhouse-server@sha256:e0504b765b22caa05d6f12a81f05c79c75e80936b57ed2235dc75a0f36d0805e"
+    },
+    {
+      "pod": "schema-bash",
+      "node": "t2dev-worker1",
+      "image": "docker.io/library/alpine:3.22",
+      "imageID": "docker.io/library/alpine@sha256:49340b346798875b5592e5d420241f2f9cfba5f47e62ebb1446a1b34734e898f"
+    },
+    {
+      "pod": "schema-loader",
+      "node": "t2dev-worker1",
+      "image": "docker.io/curlimages/curl:8.17.0",
+      "imageID": "docker.io/curlimages/curl@sha256:935d9100e9ba842cdb060de42472c7ca90cfe9a7c96e4dacb55e79e560b3ff40"
+    },
+    {
+      "pod": "z74-source",
+      "node": "t2dev-worker3",
+      "image": "docker.io/library/postgres:16-alpine",
+      "imageID": "docker.io/library/postgres@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777"
+    },
+    {
+      "pod": "z74-source",
+      "node": "t2dev-worker3",
+      "image": "docker.io/zabbix/zabbix-server-pgsql:alpine-7.4.16",
+      "imageID": "docker.io/zabbix/zabbix-server-pgsql@sha256:546f7cae8f04b287ab4ffd3cc81193f2ea99f2da1d0564217b65d93438f44454"
+    },
+    {
+      "pod": "z74-source",
+      "node": "t2dev-worker3",
+      "image": "docker.io/zabbix/zabbix-web-nginx-pgsql:alpine-7.4.16",
+      "imageID": "docker.io/zabbix/zabbix-web-nginx-pgsql@sha256:62ffffb395b9ecd63e9260263dcd9bb4038668fd691e0be1e396bc0182bf77ba"
+    },
+    {
+      "pod": "z74-target",
+      "node": "t2dev-worker2",
+      "image": "docker.io/library/postgres:16-alpine",
+      "imageID": "docker.io/library/postgres@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777"
+    },
+    {
+      "pod": "z74-target",
+      "node": "t2dev-worker2",
+      "image": "docker.io/zabbix/zabbix-server-pgsql:alpine-7.4.16",
+      "imageID": "docker.io/zabbix/zabbix-server-pgsql@sha256:546f7cae8f04b287ab4ffd3cc81193f2ea99f2da1d0564217b65d93438f44454"
+    },
+    {
+      "pod": "z74-target",
+      "node": "t2dev-worker2",
+      "image": "docker.io/zabbix/zabbix-web-nginx-pgsql:alpine-7.4.16",
+      "imageID": "docker.io/zabbix/zabbix-web-nginx-pgsql@sha256:62ffffb395b9ecd63e9260263dcd9bb4038668fd691e0be1e396bc0182bf77ba"
+    },
+    {
+      "pod": "z80-source",
+      "node": "t2dev-worker1",
+      "image": "docker.io/library/postgres:16-alpine",
+      "imageID": "docker.io/library/postgres@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777"
+    },
+    {
+      "pod": "z80-source",
+      "node": "t2dev-worker1",
+      "image": "docker.io/zabbix/zabbix-server-pgsql:alpine-8.0.0",
+      "imageID": "docker.io/zabbix/zabbix-server-pgsql@sha256:27a82a0d504e63943697bdccc964e0a8270d7c0176f4f922161bd482eec5b95c"
+    },
+    {
+      "pod": "z80-source",
+      "node": "t2dev-worker1",
+      "image": "docker.io/zabbix/zabbix-web-nginx-pgsql:alpine-8.0.0",
+      "imageID": "docker.io/zabbix/zabbix-web-nginx-pgsql@sha256:ed54de937d313cabb653464d0b5356c03a325ab44ee67a1784e881962382b113"
+    },
+    {
+      "pod": "z80-target",
+      "node": "t2dev-worker3",
+      "image": "docker.io/library/postgres:16-alpine",
+      "imageID": "docker.io/library/postgres@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777"
+    },
+    {
+      "pod": "z80-target",
+      "node": "t2dev-worker3",
+      "image": "docker.io/zabbix/zabbix-server-pgsql:alpine-8.0.0",
+      "imageID": "docker.io/zabbix/zabbix-server-pgsql@sha256:27a82a0d504e63943697bdccc964e0a8270d7c0176f4f922161bd482eec5b95c"
+    },
+    {
+      "pod": "z80-target",
+      "node": "t2dev-worker3",
+      "image": "docker.io/zabbix/zabbix-web-nginx-pgsql:alpine-8.0.0",
+      "imageID": "docker.io/zabbix/zabbix-web-nginx-pgsql@sha256:ed54de937d313cabb653464d0b5356c03a325ab44ee67a1784e881962382b113"
+    }
+  ]
+}

@@ -18,12 +18,12 @@
 
 | 段階・用途 | 取得するリソース（各 `.get`） | 通常適用時のAPI |
 | --- | --- | --- |
-| 全体設定 | `autoregistration`、`settings`、`authentication` | `autoregistration.update`、`settings.update`、`authentication.update`。認証設定はアカウント関連の適用後に反映する。 |
+| 全体設定 | `autoregistration`、`settings`、`authentication` | `autoregistration.update`、`settings.update`、`authentication.update`。認証設定はアカウント関連の適用後に反映する。APMデータソースは終盤の専用処理で反映する。 |
 | `PRE`（構成のインポート前） | `usermacro`、`regexp`、`connector`、`proxygroup` | グローバルマクロは `usermacro.createglobal` / `usermacro.updateglobal`。残りは各 `.create` / `.update`。 |
 | 構成の入出力 | `hostgroup`、`templategroup`、`template`、`mediatype`、8.0以降の `dashboard` | `configuration.export` / `configuration.import`。ダッシュボードは他のリソース適用後にインポートする。 |
-| `MID`（ホスト適用前） | `script`、`proxy` | 各 `.create` / `.update`。 |
+| `MID`（ホスト適用前） | `script`、`proxy` | 各 `.create` / `.update`。プロキシの `apm` は本体適用から分離して終盤に反映する。 |
 | ホスト | `host` | `host.create` / `host.update`。インターフェイスの取得は `hostinterface.get`。 |
-| `POST`（ホスト適用後） | `action`、`maintenance`、`drule`、`correlation`、`role`、`service`、`sla`、`userdirectory`、`mfa` | 各 `.create` / `.update`。`drule` はネットワークディスカバリ用。SAMLディレクトリの適用は `ACCOUNT` の後に行う。 |
+| `POST`（ホスト適用後） | `action`、`maintenance`、`drule`、`correlation`、8.0以降の `ceprule`、`role`、`service`、`sla`、`userdirectory`、`mfa` | 各 `.create` / `.update`。`drule` はネットワークディスカバリ用。SAMLディレクトリの適用は `ACCOUNT` の後に行う。 |
 | `ACCOUNT` | `usergroup`、`user` | 各 `.create` / `.update`。 |
 | 値のマッピング | `valuemap` | テンプレートの値マッピングは `configuration.import` のルールで扱う。`valuemap.delete` は全初期化時に使用する。 |
 
@@ -46,6 +46,39 @@
 - **検証** — HTTPモックで対象IDの指定、空配列、参照情報を含むストアへの保存とインポートの往復、基本構成適用からの分離、dry-run仮想状態への反映を確認した。7.0 / 7.2 / 7.4 / 8.0のバージョン分岐と旧ストアのスキップも回帰テストで確認した。`./tests/test-go.ps1 -count=1` は全パッケージ成功。今回の実機Zabbixでの入出力・画面表示確認は未実施。[回帰テスト](../tests/go/internal/clone/dashboard_test.go)
 
 公式資料: [7.2 API変更履歴](https://www.zabbix.com/documentation/7.2/en/manual/api/changes) · [7.4 API変更履歴](https://www.zabbix.com/documentation/7.4/en/manual/api/changes) · [8.0 API変更履歴](https://www.zabbix.com/documentation/8.0/en/manual/api/changes) · [configuration.export](https://www.zabbix.com/documentation/8.0/en/manual/api/reference/configuration/export) · [configuration.import](https://www.zabbix.com/documentation/8.0/en/manual/api/reference/configuration/import) · [dashboard.get](https://www.zabbix.com/documentation/8.0/en/manual/api/reference/dashboard/get) · [ダッシュボードのエクスポート形式・インポート時の参照](https://www.zabbix.com/documentation/8.0/en/manual/config/xml_export_import/dashboards)
+
+### 8.0のCEPルール（2026-11-20）
+
+7.0→7.2、7.2→7.4、7.4→8.0の公式API変更履歴を確認した。CEP APIは8.0で追加され、現行の取得定義、保存処理、汎用API適用、初期化処理に呼び出しがなかったため追加した。
+
+- 8.0以降で `ceprule.get` に `output: "extend"`、`selectFilter`、`selectWindow`、`selectOperations` を指定し、条件・ウィンドウ・操作を取得する。ルールIDは `cep_ruleid`、照合キーは名前。ホスト可視名・グループ名・タグなどを条件に使い、他リソースの内部IDを参照しないため名前と条件値を維持する。カスタム式の `formulaid` は式内のローカル記号として保持する。
+- `POST`の `correlation` 直後に、同名ルールがあれば適用先のIDで `ceprule.update`、なければ `ceprule.create` を呼ぶ。完全初期化の削除順序も `correlation` 直後に配置する。条件・ウィンドウ・操作・実行順序・有効状態を同期する。作成・更新・削除にはSuper admin権限が必要。
+- 保存時と適用前に、取得元の `cep_ruleid`、読み取り専用の `error`、各階層のフィルターの `eval_formula` を除外する。カスタム式以外の `formula` と条件の `formulaid` も除く。操作の `filter` と `scope_filter` の両方に適用する。ウィンドウ内のイベントや実行状態は保存せず、`ceprule.resettimewindows` は呼ばない。
+- 7.0 / 7.2 / 7.4には取得定義・適用段階を追加しない。8.0に7.x由来またはバージョン未設定のストアを適用する場合はCEP処理をスキップし、`--delete.api`でも既存ルールを削除しない。`--initialize.full`の `ceprule.delete` も取得元データが8.0以降の場合のみ実行する。通常の `--initialize` の削除対象は変更しない。8.0データでは空のCEP一覧も削除オプションに従う。
+- HTTPモックで取得から保存・作成・更新・差分削除、カスタム式とウィンドウ設定の保持、7.x/8.0の分岐を確認した。完全初期化での旧データ保護は通常実行・dry-run双方の回帰テストで確認した。`./tests/test-go.ps1 -count=1` は全パッケージ成功。2026-11-20にt2devの8.0.0で5種のウィンドウ設定の同期とNone型による実イベント名変更を確認した。[実機記録](cep-apm-live-test.md) · [CEPテスト](../tests/go/internal/clone/cep_test.go) · [初期化テスト](../tests/go/internal/clone/initialize_test.go)
+
+公式資料: [7.2 API変更](https://www.zabbix.com/documentation/7.2/en/manual/api/changes) · [7.4 API変更](https://www.zabbix.com/documentation/7.4/en/manual/api/changes) · [8.0 API変更](https://www.zabbix.com/documentation/8.0/en/manual/api/changes) · [CEPオブジェクト](https://www.zabbix.com/documentation/8.0/en/manual/api/reference/ceprule/object) · [取得](https://www.zabbix.com/documentation/8.0/en/manual/api/reference/ceprule/get) · [作成](https://www.zabbix.com/documentation/8.0/en/manual/api/reference/ceprule/create) · [更新](https://www.zabbix.com/documentation/8.0/en/manual/api/reference/ceprule/update) · [削除](https://www.zabbix.com/documentation/8.0/en/manual/api/reference/ceprule/delete) · [入力検証の公式実装](https://github.com/zabbix/zabbix/blob/release/8.0/ui/include/classes/api/services/CCepRule.php)
+
+### 8.0のAPMと管理のデータソース（2026-11-20）
+
+7.0→7.2、7.2→7.4、7.4→8.0の公式API変更履歴と実呼び出しを確認した。APMの設定は独立した作成APIではなく、既存の `settings`、`proxy`、`usergroup` に分かれる。「管理 → データソース → APM」は同じ機能のグローバル接続設定で、`settings.apm_global_db` に対応する。
+
+| 設定・用途 | APIとZCの処理 |
+| --- | --- |
+| グローバルデータソース | `settings.get` の `apm_global_db` を保存。`settings.update` で有効状態、URL、認証方式、ユーザー名、DB名、TLS検証設定を適用する。接続パスワードは保存対象外。 |
+| プロキシのAPM収集 | `proxy.get` の `selectApm: "extend"` で `apm` を取得。`proxy.create/update` では本体のみ先に適用し、終盤に適用先の `proxyid` を使って `proxy.update` の `apm` を送る。収集状態、メッセージ上限、追加リソース属性を同期する。無効時は上限・属性を送らない。 |
+| APMアクセス権限 | `usergroup.get` の `selectProxies`、`selectProxyGroups`、`selectApmFilters` を使用する既存経路を維持する。プロキシ・グループの参照は名前で保存し、適用先IDに解決する。 |
+| テレメトリの実データ | `apmtrace.get`、`apmspan.get`、`apmmetric.get`、`apmlog.get` はトレース等の照会API。設定同期に必要ないため呼び出さず、ClickHouse内の実データは複製しない。 |
+
+**処理順序**: 一般Settings → プロキシ本体 → ホスト・POST・ACCOUNTなど → Settings参照の遅延適用・認証・PSK → APMデータソース → プロキシAPM収集設定 → ダッシュボード → バージョン記録。`prepareSettingsUpdate` がAPM項目を分離し、`ApplyAPMSettings` が終盤に適用する。一般Settings全体の順序は変更しない。データソースの適用に失敗したら、後続のAPM収集設定は適用しない。[APM実装](../go-lang/internal/clone/apm.go) · [実行順序](../go-lang/internal/clone/run.go)
+
+**シークレット**: 接続パスワードはPSKと同様に複製先の `zc.secret` の `settings.apm_global_db.password` で供給する。APIが返した値は保存せず、旧ストアの値も適用前に除去する。適用先APIから取得したパスワードも補完に使わない。未指定ならリクエストに含めず、空文字の明示指定は空のパスワードとして送る。パスワード認証で有効化・認証方式の切替・URL変更を行う場合、公式実装は明示的なパスワードを要求する。APMデータソースの上書きは項目単位でマージし、秘密情報だけの指定でURL等を失わない。設定ファイルやストアのオブジェクトは上書き処理で変更しない。
+
+**条件と互換性**: 8.0以降のみ。無効なデータソースは `status: 0` のみを送る。認証なしの場合はユーザー名・パスワード、HTTPの場合はTLS設定、証明書検証無効時はホスト名検証設定を送らない。7.xにはAPM更新を送らず、旧ストアでAPM項目が欠けている場合も、複製先の明示的な設定がない限り該当項目は更新しない。server/proxy/frontendのファイルにある個別接続設定やOpenTelemetry/ClickHouseの構築・データ移行は対象外。
+
+**検証**: HTTPモックで一般Settings・プロキシ本体へのAPM混入を防ぐこと、データソース→収集設定の順序、適用先ID、部分上書き、API・旧ストアのパスワード除外、明示的な空のパスワード、無効化・認証・TLSの条件、dry-run、旧バージョンを検証した。既存の権限ID変換テストを含め、`./tests/test-go.ps1 -count=1` は全パッケージ成功。2026-11-20にt2devで今回の順序での設定同期・接続を確認した。VM設定変更後はClickHouse 26.9.33.10に対するAPM APIとserverのTelemetry queryでテストデータを照会できた。OTLP経由の収集の通し試験は未再実施。[実機記録](cep-apm-live-test.md) · [APMテスト](../tests/go/internal/clone/apm_test.go)
+
+公式資料: [8.0 API変更](https://www.zabbix.com/documentation/8.0/en/manual/api/changes) · [7.4 API変更](https://www.zabbix.com/documentation/7.4/en/manual/api/changes) · [7.2 API変更](https://www.zabbix.com/documentation/7.2/en/manual/api/changes) · [管理のデータソース](https://www.zabbix.com/documentation/8.0/en/manual/web_interface/frontend_sections/administration/data_source) · [Settings仕様](https://www.zabbix.com/documentation/8.0/en/manual/api/reference/settings/object) · [Settings更新](https://www.zabbix.com/documentation/8.0/en/manual/api/reference/settings/update) · [パスワード要件の公式実装](https://github.com/zabbix/zabbix/blob/release/8.0/ui/include/classes/api/services/CSettings.php) · [プロキシ仕様](https://www.zabbix.com/documentation/8.0/en/manual/api/reference/proxy/object) · [ユーザーグループ取得](https://www.zabbix.com/documentation/8.0/en/manual/api/reference/usergroup/get) · [トレース取得](https://www.zabbix.com/documentation/8.0/en/manual/api/reference/apmtrace/get) · [スパン取得](https://www.zabbix.com/documentation/8.0/en/manual/api/reference/apmspan/get) · [メトリクス取得](https://www.zabbix.com/documentation/8.0/en/manual/api/reference/apmmetric/get) · [ログ取得](https://www.zabbix.com/documentation/8.0/en/manual/api/reference/apmlog/get)
 
 ## 運用オプションと補助処理
 
@@ -83,7 +116,7 @@
 
 - **APMとユーザーグループ権限** — 8.0以降の取得で `proxy.get` に `selectApm`、`usergroup.get` に `selectProxies`、`selectProxyGroups`、`selectApmFilters` を指定する。プロキシとグループの割り当ては名前で保存し、適用先IDに変換する。割り当て先が存在しないときはエラーを返す。旧ストアに割り当て項目がない場合は、複製先の割り当てをその項目で上書きしない。[プロキシ取得仕様](https://www.zabbix.com/documentation/8.0/en/manual/api/reference/proxy/get) · [ユーザーグループ取得仕様](https://www.zabbix.com/documentation/8.0/en/manual/api/reference/usergroup/get)
 - **SAML** — 名前のないディレクトリもSAMLとして識別し、ユーザーグループ作成後に `userdirectory.create/update`、続いて `authentication.update` を呼ぶ。証明書・秘密鍵と読み取り専用ハッシュはストアから除外する。8.0でフロントエンドの `$SSO['CERT_STORAGE']` を `database` に設定した場合、複製先の `zc.secret` の `saml_certificates` に `idp_certificate`、`sp_private_key`、`sp_certificate` をPEM文字列で指定できる。未指定の証明書・秘密鍵は更新リクエストに含めない。ファイル保存方式では、必要な証明書と鍵を複製先のフロントエンドに配置する。[ユーザーディレクトリ仕様](https://www.zabbix.com/documentation/8.0/en/manual/api/reference/userdirectory/object) · [SAML適用処理](../go-lang/internal/clone/saml.go)
-- **全体設定** — 8.0以降で `settings.timeout_telemetry_query`（短縮形は `settings.timeout.telemetry_query`）、`settings.device_link_timeout`、`settings.apm_global_db`、`settings.default_theme` の `dark-blue-theme` を指定できる。APMデータソースの上書きはオブジェクト単位。接続パスワードは `zc.secret` の `settings.apm_global_db.password` で供給し、取得元からのパスワードはストアに保存しない。[全体設定仕様](https://www.zabbix.com/documentation/8.0/en/manual/api/reference/settings/object) · [上書き処理](../go-lang/internal/clone/settings.go)
+- **全体設定** — 8.0以降で `settings.timeout_telemetry_query`（短縮形は `settings.timeout.telemetry_query`）、`settings.device_link_timeout`、`settings.apm_global_db`、`settings.default_theme` の `dark-blue-theme` を指定できる。APMデータソースの上書きは項目単位（2026-11-20に変更）。接続パスワードは `zc.secret` の `settings.apm_global_db.password` で供給し、取得元からのパスワードはストアに保存しない。[全体設定仕様](https://www.zabbix.com/documentation/8.0/en/manual/api/reference/settings/object) · [上書き処理](../go-lang/internal/clone/settings.go)
 
 SAML JITでプロビジョニングを解除されたユーザーの所属グループ（`disabled_usrgrpid`）は、名前で保存し適用先のIDに解決する。旧ストアでIDを保存している場合は従来どおりその値を使用するため、ノード間でIDが異なるときはマスターを再取得する。[認証設定仕様](https://www.zabbix.com/documentation/8.0/en/manual/api/reference/authentication/object)
 
@@ -110,4 +143,4 @@ Zabbix 8.0.0を2台用意し、fileストアを使ったマスター取得とレ
 
 - 7.2の `auth` 廃止はBearer認証への切り替えで対応済み。廃止された `selectGroups`、`selectRights`、`discoveryrule.copy` は現行の呼び出しにない。7.4の厳格化に対して `user.get` は `userid` を明示し、`mediatype.get` と `usergroup.get` は該当の `selectUsers` や `mfaids` を送らない。[取得定義](../go-lang/internal/clone/parameters.go) · [認証実装](../go-lang/internal/zabbix/client.go)
 - 8.0のホストインターフェイスの変更、ロールの空の許可リスト、`serverid`、正規表現の説明、アクションのプロキシグループ条件は既存試験の検証範囲。廃止された `*.massupdate` は現行コードで呼び出していない。[互換性確認記録](zabbix80-compatibility.md)
-- 履歴データ、マップ、CEPルール、APMデータ、デバイスは現行の複製対象外。8.0の `configuration.importcompare` は使用していない。ダッシュボードの入出力は2026-11-11に8.0以降向けに追加した（上記参照）。グローバル正規表現は構成エクスポートの新オプションを使わず、既存の `regexp.get/create/update` で同期する。[取得・インポート定義](../go-lang/internal/clone/parameters.go)
+- 履歴データ、マップ、APMデータ、デバイスは現行の複製対象外。CEPルールは2026-11-20に8.0以降向けに追加した（上記参照）。8.0の `configuration.importcompare` は使用していない。ダッシュボードの入出力は2026-11-11に8.0以降向けに追加した（上記参照）。グローバル正規表現は構成エクスポートの新オプションを使わず、既存の `regexp.get/create/update` で同期する。[取得・インポート定義](../go-lang/internal/clone/parameters.go)

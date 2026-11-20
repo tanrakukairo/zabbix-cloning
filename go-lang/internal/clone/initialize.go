@@ -13,6 +13,7 @@ var fullInitializeOrder = []string{
 	"dashboard",
 	"action",
 	"correlation",
+	"ceprule",
 	"maintenance",
 	"drule",
 	"sla",
@@ -78,8 +79,8 @@ func (e *Engine) fullInitializeMethods() []string {
 }
 
 func (e *Engine) deleteAllForInitialize(ctx context.Context, method string, full bool) error {
-	if full && method == "dashboard" && e.NewVersion.MasterVersion < 8 {
-		e.Log.Infof("Initialize[dashboard]: SKIP (source data is older than 8.0)")
+	if full && (method == "dashboard" || method == "ceprule") && e.NewVersion.MasterVersion < 8 {
+		e.Log.Infof("Initialize[%s]: SKIP (source data is older than 8.0)", method)
 		return nil
 	}
 	spec, ok := e.Params.Methods[method]
